@@ -11,9 +11,14 @@ import 'add_account_dialog.dart';
 
 /// All non-archived accounts with running balance (Phase 1.2).
 class AccountsPage extends StatefulWidget {
-  const AccountsPage({super.key, required this.auth});
+  const AccountsPage({
+    super.key,
+    required this.auth,
+    this.onOpenRegister,
+  });
 
   final AuthService? auth;
+  final ValueChanged<String>? onOpenRegister;
 
   @override
   State<AccountsPage> createState() => _AccountsPageState();
@@ -92,6 +97,12 @@ class _AccountsPageState extends State<AccountsPage> {
         accountId: _selectedAccountId!,
         onClose: () => setState(() => _selectedAccountId = null),
         onChanged: _reload,
+        onOpenRegister: widget.onOpenRegister == null
+            ? null
+            : (accountId) {
+                setState(() => _selectedAccountId = null);
+                widget.onOpenRegister!(accountId);
+              },
       );
     }
 

@@ -17,12 +17,14 @@ class AccountInfoPage extends StatefulWidget {
     required this.accountId,
     required this.onClose,
     this.onChanged,
+    this.onOpenRegister,
   });
 
   final AuthService auth;
   final String accountId;
   final VoidCallback onClose;
   final VoidCallback? onChanged;
+  final ValueChanged<String>? onOpenRegister;
 
   @override
   State<AccountInfoPage> createState() => _AccountInfoPageState();
@@ -557,8 +559,12 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
                             ),
                             OutlinedButton(
                               key: const Key('account_info_open_register'),
-                              onPressed: null,
-                              child: const Text('Open register (Phase 1.4)'),
+                              onPressed: _busy || widget.onOpenRegister == null
+                                  ? null
+                                  : () => widget.onOpenRegister!(
+                                        widget.accountId,
+                                      ),
+                              child: const Text('Open register'),
                             ),
                             if (!account.isPrimary &&
                                 account.type == AccountType.checking)

@@ -5,7 +5,7 @@ import '../core/app_info.dart';
 import '../data/account_repository.dart';
 import '../features/accounts/accounts_page.dart';
 import '../features/accounts/debts_page.dart';
-import '../features/placeholders/placeholder_page.dart';
+import '../features/register/register_page.dart';
 import '../features/settings/settings_page.dart';
 import '../theme/app_colors.dart';
 import 'app_destination.dart';
@@ -20,6 +20,7 @@ class AppShell extends StatefulWidget {
     this.helloEnabled = false,
     this.helloAvailable = false,
     this.onToggleHello,
+    this.initialRegisterAccountId,
   });
 
   final AppDestination initialDestination;
@@ -29,45 +30,63 @@ class AppShell extends StatefulWidget {
   final bool helloAvailable;
   final Future<void> Function(bool enable)? onToggleHello;
 
+  /// Optional override for tests; otherwise cold start uses primary.
+  final String? initialRegisterAccountId;
+
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
-  late AppDestination _destination = widget.initialDestination;
-  String? _primaryName;
+  late AppDestination _destination;
+  String? _registerAccountId;
   String? _databasePath;
 
   @override
   void initState() {
     super.initState();
+    _destination = widget.initialDestination;
+    _registerAccountId = widget.initialRegisterAccountId;
     _loadAccountContext();
+  }
+
+  @override
+  void didUpdateWidget(covariant AppShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.auth?.session != widget.auth?.session) {
+      _registerAccountId = widget.initialRegisterAccountId;
+      _loadAccountContext();
+    }
   }
 
   Future<void> _loadAccountContext() async {
     final auth = widget.auth;
-    String? name;
     String? path;
+    String? registerId = _registerAccountId;
     if (auth?.session != null) {
       final repo = AccountRepository(auth!.session!);
-      final id = repo.primaryAccountId();
-      if (id != null) {
-        final rows = auth.session!.database.select(
-          'SELECT name FROM accounts WHERE id = ?',
-          [id],
-        );
-        if (rows.isNotEmpty) {
-          name = rows.first['name'] as String;
-        }
+      final primaryId = repo.primaryAccountId();
+      registerId ??= primaryId;
+      if (registerId != null && repo.getById(registerId) == null) {
+        registerId = primaryId;
       }
       path = await auth.databasePath();
+    } else {
+      registerId = null;
     }
     if (!mounted) {
       return;
     }
     setState(() {
-      _primaryName = name;
+      _registerAccountId = registerId;
       _databasePath = path;
+    });
+  }
+
+  void _openRegister(String accountId) {
+    setState(() {
+      _registerAccountId = accountId;
+      _destination = AppDestination.register;
     });
   }
 
@@ -82,6 +101,16 @@ class _AppShellState extends State<AppShell> {
             onDestinationSelected: (index) {
               setState(() {
                 _destination = AppDestination.values[index];
+                // Rail → Register keeps the current account, or falls back
+                // to primary on first open / missing account.
+                if (_destination == AppDestination.register &&
+                    widget.auth?.session != null) {
+                  final repo = AccountRepository(widget.auth!.session!);
+                  if (_registerAccountId == null ||
+                      repo.getById(_registerAccountId!) == null) {
+                    _registerAccountId = repo.primaryAccountId();
+                  }
+                }
               });
             },
             labelType: NavigationRailLabelType.all,
@@ -132,23 +161,20 @@ class _AppShellState extends State<AppShell> {
 
   Widget _pageFor(AppDestination destination) {
     return switch (destination) {
-      AppDestination.register => PlaceholderPage(
-          key: const Key('page_register'),
-          title: _primaryName == null
-              ? 'Register'
-              : 'Register — $_primaryName',
-          subtitle: _primaryName == null
-              ? 'Primary checking register opens here by default. Full ledger arrives in Phase 2.'
-              : 'Primary checking “$_primaryName” is ready. Transaction entry arrives in Phase 2.',
-          phaseHint: '// phase 2 — transactions, clear, running balance',
+      AppDestination.register => RegisterPage(
+          key: Key('register_${_registerAccountId ?? 'none'}'),
+          auth: widget.auth,
+          accountId: _registerAccountId,
         ),
       AppDestination.accounts => AccountsPage(
           key: const Key('page_accounts'),
           auth: widget.auth,
+          onOpenRegister: _openRegister,
         ),
       AppDestination.debts => DebtsPage(
           key: const Key('page_debts'),
           auth: widget.auth,
+          onOpenRegister: _openRegister,
         ),
       AppDestination.settings => SettingsPage(
           key: const Key('page_settings'),

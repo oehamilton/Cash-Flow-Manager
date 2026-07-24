@@ -19,6 +19,7 @@ void main() {
     expect(find.byKey(const Key('app_shell_brand')), findsOneWidget);
     expect(find.text(AppInfo.versionLabel), findsOneWidget);
     expect(find.byKey(const Key('page_register')), findsOneWidget);
+    expect(find.byKey(const Key('register_empty')), findsOneWidget);
   });
 
   testWidgets('Navigating to Accounts shows accounts page', (tester) async {
