@@ -408,8 +408,8 @@ Worth deciding now so they don’t surprise us mid-build:
 - **2.3** Clear / reconcile; protect cleared edits; **statement ending-balance reconcile** (**audit** clear/unclear / reconcile)
 - **2.4** Sticky header: reconciled + today (trough placeholders) — **register layout gate**
 - **2.5** Row styles: cleared vs uncleared
-- **2.6** *(optional)* Register UI pass + light search/filter + keyboard entry polish
-- **Exit:** classic register usable on every account; register chrome accepted or 2.6 scheduled
+- **2.6** Register UI pass + light search/filter + keyboard entry polish
+- **Exit:** classic register usable on every account; register chrome accepted
 
 ### Phase 3 — Forecast & recurrence
 - **3.1** Recurrence rule CRUD + frequencies

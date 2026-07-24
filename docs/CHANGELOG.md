@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-07-24
+
+### Added
+
+- Phase 2.6 register search/filter, keyboard shortcuts, and density polish
+
 ## [2.5.0] — 2026-07-24
 
 ### Added

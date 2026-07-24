@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../auth/auth_service.dart';
 import '../../data/account.dart';
@@ -9,11 +10,13 @@ import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'reconcile_dialog.dart';
+import 'register_filter.dart';
+import 'register_filter_bar.dart';
 import 'register_metrics_bar.dart';
 import 'register_row_style.dart';
 import 'transaction_editor_dialog.dart';
 
-/// Register surface: sticky metrics header + ledger (Phase 2.4 layout gate).
+/// Register surface: sticky metrics, filter bar, and ledger (Phase 2.6).
 ///
 /// Ledger rows are always read from [accountId] during [build] so switching
 /// accounts cannot show a stale list from a previous register.
@@ -33,6 +36,14 @@ class RegisterPage extends StatefulWidget {
 
 class _RegisterPageState extends State<RegisterPage> {
   String? _error;
+  RegisterFilter _filter = const RegisterFilter();
+  final FocusNode _searchFocus = FocusNode();
+
+  @override
+  void dispose() {
+    _searchFocus.dispose();
+    super.dispose();
+  }
 
   TransactionRepository? get _transactions {
     final session = widget.auth?.session;
@@ -200,6 +211,7 @@ class _RegisterPageState extends State<RegisterPage> {
     Account? account;
     RegisterMetrics? metrics;
     List<RegisterEntry> entries = const [];
+    List<RegisterEntry> visible = const [];
     String? loadError = _error;
 
     if (session != null && accountId != null) {
@@ -211,165 +223,239 @@ class _RegisterPageState extends State<RegisterPage> {
           // Always scope by the widget account id (not cached state).
           metrics = txs.metricsFor(accountId);
           entries = txs.listRegisterEntries(accountId);
+          visible = applyRegisterFilter(entries, _filter);
         }
       } on Object catch (e) {
         loadError = e.toString();
       }
     }
 
-    return DecoratedBox(
-      key: const Key('page_register'),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.backgroundDeep,
-            AppColors.backgroundMid,
-            Color(0xFF0C3338),
-          ],
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    account == null
-                        ? 'Register'
-                        : 'Register — ${account.name}',
-                    key: const Key('register_title'),
-                    style: textTheme.headlineMedium,
-                  ),
-                ),
-                if (account != null) ...[
-                  OutlinedButton.icon(
-                    key: const Key('register_reconcile'),
-                    onPressed: () => _openReconcile(account!),
-                    icon: const Icon(Icons.fact_check_outlined),
-                    label: const Text('Reconcile'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    key: const Key('register_add_tx'),
-                    onPressed: () => _addTransaction(account!),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add transaction'),
-                  ),
+    return Shortcuts(
+      shortcuts: const {
+        SingleActivator(LogicalKeyboardKey.keyN, control: true):
+            _AddTransactionIntent(),
+        SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            _FocusSearchIntent(),
+        SingleActivator(LogicalKeyboardKey.escape): _ClearFilterIntent(),
+      },
+      child: Actions(
+        actions: {
+          _AddTransactionIntent: CallbackAction<_AddTransactionIntent>(
+            onInvoke: (_) {
+              final current = account;
+              if (current != null) {
+                _addTransaction(current);
+              }
+              return null;
+            },
+          ),
+          _FocusSearchIntent: CallbackAction<_FocusSearchIntent>(
+            onInvoke: (_) {
+              _searchFocus.requestFocus();
+              return null;
+            },
+          ),
+          _ClearFilterIntent: CallbackAction<_ClearFilterIntent>(
+            onInvoke: (_) {
+              if (_filter.isActive) {
+                setState(() => _filter = const RegisterFilter());
+              } else if (_searchFocus.hasFocus) {
+                _searchFocus.unfocus();
+              }
+              return null;
+            },
+          ),
+        },
+        child: Focus(
+          autofocus: true,
+          child: DecoratedBox(
+            key: const Key('page_register'),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.backgroundDeep,
+                  AppColors.backgroundMid,
+                  Color(0xFF0C3338),
                 ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (account == null)
-              Text(
-                session == null
-                    ? 'Unlock a vault to open a register.'
-                    : 'No account selected. Cold start opens primary checking when available.',
-                key: const Key('register_empty'),
-                style: textTheme.bodyLarge,
-              )
-            else ...[
-              Text(
-                '${account.type.label}'
-                '${account.isPrimary ? ' · PRIMARY' : ''}'
-                '${account.institution == null || account.institution!.isEmpty ? '' : ' · ${account.institution}'}',
-                style: textTheme.bodyLarge?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                ),
               ),
-              const SizedBox(height: 12),
-              // Sticky chrome: metrics + column labels stay above the scroll.
-              if (metrics != null) RegisterMetricsBar(metrics: metrics),
-              if (loadError != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  loadError,
-                  key: const Key('register_error'),
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: AppColors.danger,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              Expanded(
-                child: DecoratedBox(
-                  key: ValueKey('register_ledger_$accountId'),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: AppColors.outline),
-                    color: AppColors.surface.withValues(alpha: 0.55),
-                  ),
-                  child: Column(
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Material(
-                        color: AppColors.surfaceElevated.withValues(alpha: 0.85),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          child: _RegisterColumnHeader(textTheme: textTheme),
+                      Expanded(
+                        child: Text(
+                          account == null
+                              ? 'Register'
+                              : 'Register — ${account.name}',
+                          key: const Key('register_title'),
+                          style: textTheme.headlineMedium,
                         ),
                       ),
-                      const Divider(height: 1, color: AppColors.outline),
-                      Expanded(
-                        child: entries.isEmpty
-                            ? Center(
-                                child: Text(
-                                  'No transactions yet.',
-                                  key: const Key('register_tx_empty'),
-                                  style: textTheme.bodyLarge,
-                                ),
-                              )
-                            : ListView.builder(
-                                key: ValueKey('register_tx_list_$accountId'),
-                                itemCount: entries.length,
-                                itemBuilder: (context, index) {
-                                  final entry = entries[index];
-                                  final tx = entry.transaction;
-                                  return Column(
-                                    key: Key('register_tx_${tx.id}'),
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      if (index > 0)
-                                        const Divider(
-                                          height: 1,
-                                          color: AppColors.outline,
-                                        ),
-                                      _RegisterLedgerRow(
-                                        entry: entry,
-                                        dateLabel: _dateLabel(tx.date),
-                                        onClearedChanged: tx.isOpeningBalance
-                                            ? null
-                                            : (value) =>
-                                                _toggleCleared(tx, value),
-                                        onEdit: tx.isOpeningBalance ||
-                                                tx.isCleared
-                                            ? null
-                                            : () => _editTransaction(tx),
-                                        onDelete: tx.isOpeningBalance ||
-                                                tx.isCleared
-                                            ? null
-                                            : () => _deleteTransaction(tx),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                      ),
+                      if (account != null) ...[
+                        OutlinedButton.icon(
+                          key: const Key('register_reconcile'),
+                          onPressed: () => _openReconcile(account!),
+                          icon: const Icon(Icons.fact_check_outlined),
+                          label: const Text('Reconcile'),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton.icon(
+                          key: const Key('register_add_tx'),
+                          onPressed: () => _addTransaction(account!),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Add'),
+                        ),
+                      ],
                     ],
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  if (account == null)
+                    Text(
+                      session == null
+                          ? 'Unlock a vault to open a register.'
+                          : 'No account selected. Cold start opens primary checking when available.',
+                      key: const Key('register_empty'),
+                      style: textTheme.bodyLarge,
+                    )
+                  else ...[
+                    Text(
+                      '${account.type.label}'
+                      '${account.isPrimary ? ' · PRIMARY' : ''}'
+                      '${account.institution == null || account.institution!.isEmpty ? '' : ' · ${account.institution}'}',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: AppColors.onSurfaceMuted,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    if (metrics != null) RegisterMetricsBar(metrics: metrics),
+                    const SizedBox(height: 8),
+                    RegisterFilterBar(
+                      filter: _filter,
+                      searchFocusNode: _searchFocus,
+                      resultCount: visible.length,
+                      totalCount: entries.length,
+                      onChanged: (next) => setState(() => _filter = next),
+                    ),
+                    if (loadError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        loadError,
+                        key: const Key('register_error'),
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: AppColors.danger,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: DecoratedBox(
+                        key: ValueKey('register_ledger_$accountId'),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: AppColors.outline),
+                          color: AppColors.surface.withValues(alpha: 0.55),
+                        ),
+                        child: Column(
+                          children: [
+                            Material(
+                              color: AppColors.surfaceElevated
+                                  .withValues(alpha: 0.85),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                child: _RegisterColumnHeader(
+                                  textTheme: textTheme,
+                                ),
+                              ),
+                            ),
+                            const Divider(height: 1, color: AppColors.outline),
+                            Expanded(
+                              child: visible.isEmpty
+                                  ? Center(
+                                      child: Text(
+                                        entries.isEmpty
+                                            ? 'No transactions yet.'
+                                            : 'No rows match this filter.',
+                                        key: const Key('register_tx_empty'),
+                                        style: textTheme.bodyLarge,
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      key: ValueKey(
+                                        'register_tx_list_$accountId',
+                                      ),
+                                      itemCount: visible.length,
+                                      itemBuilder: (context, index) {
+                                        final entry = visible[index];
+                                        final tx = entry.transaction;
+                                        return Column(
+                                          key: Key('register_tx_${tx.id}'),
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (index > 0)
+                                              const Divider(
+                                                height: 1,
+                                                color: AppColors.outline,
+                                              ),
+                                            _RegisterLedgerRow(
+                                              entry: entry,
+                                              dateLabel: _dateLabel(tx.date),
+                                              onClearedChanged:
+                                                  tx.isOpeningBalance
+                                                      ? null
+                                                      : (value) =>
+                                                          _toggleCleared(
+                                                            tx,
+                                                            value,
+                                                          ),
+                                              onEdit: tx.isOpeningBalance ||
+                                                      tx.isCleared
+                                                  ? null
+                                                  : () =>
+                                                      _editTransaction(tx),
+                                              onDelete: tx.isOpeningBalance ||
+                                                      tx.isCleared
+                                                  ? null
+                                                  : () =>
+                                                      _deleteTransaction(tx),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ],
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+class _AddTransactionIntent extends Intent {
+  const _AddTransactionIntent();
+}
+
+class _FocusSearchIntent extends Intent {
+  const _FocusSearchIntent();
+}
+
+class _ClearFilterIntent extends Intent {
+  const _ClearFilterIntent();
 }
 
 class _RegisterColumnHeader extends StatelessWidget {
@@ -450,7 +536,7 @@ class _RegisterLedgerRow extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
