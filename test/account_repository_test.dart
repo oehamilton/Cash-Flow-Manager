@@ -193,6 +193,41 @@ void main() {
     );
   });
 
+  test('update persists credentials without auditing secrets', () async {
+    final accounts = await repo();
+    final id = accounts.createPrimaryChecking(
+      PrimaryCheckingDraft(
+        name: 'Checking',
+        openingBalanceCents: 0,
+        openingDate: DateTime(2026, 7, 1),
+      ),
+    );
+
+    accounts.update(
+      id,
+      const AccountUpdate(
+        loginUrl: 'https://bank.example/login',
+        loginUsername: 'pat',
+        loginPassword: 'vault-secret',
+        contactEmail: 'pat@example.com',
+        notes: 'Call before large transfers',
+      ),
+    );
+
+    final updated = accounts.getById(id)!;
+    expect(updated.loginUrl, 'https://bank.example/login');
+    expect(updated.loginUsername, 'pat');
+    expect(updated.loginPassword, 'vault-secret');
+    expect(updated.contactEmail, 'pat@example.com');
+    expect(updated.notes, 'Call before large transfers');
+
+    final auditJson = AuditLogRepository(harness.session)
+        .recent()
+        .map((e) => '${e['summary']}|${e['detail_json']}')
+        .join('\n');
+    expect(auditJson, isNot(contains('vault-secret')));
+  });
+
   test('create with isPrimary transfers from previous primary', () async {
     final accounts = await repo();
     final oldId = accounts.createPrimaryChecking(
