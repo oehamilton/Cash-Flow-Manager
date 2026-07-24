@@ -59,6 +59,29 @@ WHERE account_id = ? AND is_cleared = 1
     return row['balance'] as int;
   }
 
+  /// Ledger total for transactions on or before [asOf] (calendar date).
+  int balanceOnOrBefore(String accountId, DateTime asOf) {
+    final date = _dateOnly(asOf);
+    final row = _db.select(
+      '''
+SELECT COALESCE(SUM(amount_cents), 0) AS balance
+FROM transactions
+WHERE account_id = ? AND date <= ?
+''',
+      [accountId, date],
+    ).first;
+    return row['balance'] as int;
+  }
+
+  /// Sticky header metrics; troughs are placeholders until forecast lands.
+  RegisterMetrics metricsFor(String accountId, {DateTime? asOf}) {
+    final today = asOf ?? DateTime.now();
+    return RegisterMetrics(
+      reconciledCents: clearedBalanceCents(accountId),
+      todayCents: balanceOnOrBefore(accountId, today),
+    );
+  }
+
   /// Distinct historical payees for autocomplete (case-insensitive prefix).
   List<String> payeeSuggestions(
     String accountId, {
