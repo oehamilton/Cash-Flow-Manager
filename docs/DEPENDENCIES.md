@@ -25,6 +25,7 @@ What to install when coding or building Cash Flow Manager on a **new Windows mac
 - Biometrics: `local_auth` / `local_auth_windows`
 - Paths: `%APPDATA%\CashFlowManager\` (no `path_provider` on Windows for now)
 - File browse: `file_selector` / `file_selector_windows` (native dialog; no JNI)
+- CI: GitHub Actions `windows-latest` with `subosito/flutter-action` (stable) — see `.github/workflows/ci.yml`
 
 ## Required installs (Windows desktop development)
 

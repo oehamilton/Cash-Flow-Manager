@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-07-23
+
+### Added
+
+- Phase 0.6 test harness (`TempVaultHarness`, `SampleDataset`) and GitHub Actions CI
+
 ## [0.5.0] — 2026-07-23
 
 ### Added
