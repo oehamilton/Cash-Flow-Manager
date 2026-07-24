@@ -144,133 +144,145 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.initial != null;
-    return AlertDialog(
-      key: const Key('transaction_editor_dialog'),
-      backgroundColor: AppColors.surface,
-      title: Text(isEdit ? 'Edit transaction' : 'Add transaction'),
-      content: SizedBox(
-        width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const Key('tx_date_button'),
-                onPressed: _pickDate,
-                icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                label: Text(_dateLabel(_date)),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Autocomplete<String>(
-              optionsBuilder: (textEditingValue) {
-                final q = textEditingValue.text.trim().toLowerCase();
-                if (q.isEmpty) {
-                  return widget.suggestions.take(12);
-                }
-                return widget.suggestions
-                    .where((s) => s.toLowerCase().contains(q))
-                    .take(12);
-              },
-              initialValue: TextEditingValue(text: _payeeText),
-              onSelected: (value) {
-                setState(() => _payeeText = value);
-              },
-              fieldViewBuilder: (
-                context,
-                textEditingController,
-                focusNode,
-                onFieldSubmitted,
-              ) {
-                return TextField(
-                  key: const Key('tx_payee_field'),
-                  controller: textEditingController,
-                  focusNode: focusNode,
-                  decoration: const InputDecoration(
-                    labelText: 'Payee',
-                    hintText: 'Start typing for suggestions',
-                  ),
-                  textInputAction: TextInputAction.next,
-                  onChanged: (value) => _payeeText = value,
-                  onSubmitted: (_) => onFieldSubmitted(),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              key: const Key('tx_memo_field'),
-              controller: _memoController,
-              decoration: const InputDecoration(labelText: 'Memo'),
-              textInputAction: TextInputAction.next,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    key: const Key('tx_payment_field'),
-                    controller: _paymentController,
-                    decoration: const InputDecoration(
-                      labelText: 'Payment',
-                      hintText: 'Debit',
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [_amountAllow],
-                    onChanged: (_) {
-                      if (_paymentController.text.trim().isNotEmpty) {
-                        _depositController.clear();
-                      }
-                    },
-                  ),
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          Navigator.of(context).pop();
+        },
+        const SingleActivator(LogicalKeyboardKey.enter, control: true): _submit,
+      },
+      child: AlertDialog(
+        key: const Key('transaction_editor_dialog'),
+        backgroundColor: AppColors.surface,
+        title: Text(isEdit ? 'Edit transaction' : 'Add transaction'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: const Key('tx_date_button'),
+                  onPressed: _pickDate,
+                  icon: const Icon(Icons.calendar_today_outlined, size: 18),
+                  label: Text(_dateLabel(_date)),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    key: const Key('tx_deposit_field'),
-                    controller: _depositController,
+              ),
+              const SizedBox(height: 8),
+              Autocomplete<String>(
+                optionsBuilder: (textEditingValue) {
+                  final q = textEditingValue.text.trim().toLowerCase();
+                  if (q.isEmpty) {
+                    return widget.suggestions.take(12);
+                  }
+                  return widget.suggestions
+                      .where((s) => s.toLowerCase().contains(q))
+                      .take(12);
+                },
+                initialValue: TextEditingValue(text: _payeeText),
+                onSelected: (value) {
+                  setState(() => _payeeText = value);
+                },
+                fieldViewBuilder: (
+                  context,
+                  textEditingController,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
+                  return TextField(
+                    key: const Key('tx_payee_field'),
+                    controller: textEditingController,
+                    focusNode: focusNode,
+                    autofocus: true,
                     decoration: const InputDecoration(
-                      labelText: 'Deposit',
-                      hintText: 'Credit',
+                      labelText: 'Payee',
+                      hintText: 'Start typing for suggestions',
                     ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                    textInputAction: TextInputAction.next,
+                    onChanged: (value) => _payeeText = value,
+                    onSubmitted: (_) => onFieldSubmitted(),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: const Key('tx_memo_field'),
+                controller: _memoController,
+                decoration: const InputDecoration(labelText: 'Memo'),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const Key('tx_payment_field'),
+                      controller: _paymentController,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment',
+                        hintText: 'Debit · Enter to save',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [_amountAllow],
+                      textInputAction: TextInputAction.done,
+                      onChanged: (_) {
+                        if (_paymentController.text.trim().isNotEmpty) {
+                          _depositController.clear();
+                        }
+                      },
+                      onSubmitted: (_) => _submit(),
                     ),
-                    inputFormatters: [_amountAllow],
-                    onChanged: (_) {
-                      if (_depositController.text.trim().isNotEmpty) {
-                        _paymentController.clear();
-                      }
-                    },
-                    onSubmitted: (_) => _submit(),
                   ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      key: const Key('tx_deposit_field'),
+                      controller: _depositController,
+                      decoration: const InputDecoration(
+                        labelText: 'Deposit',
+                        hintText: 'Credit · Enter to save',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [_amountAllow],
+                      textInputAction: TextInputAction.done,
+                      onChanged: (_) {
+                        if (_depositController.text.trim().isNotEmpty) {
+                          _paymentController.clear();
+                        }
+                      },
+                      onSubmitted: (_) => _submit(),
+                    ),
+                  ),
+                ],
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: const TextStyle(color: AppColors.danger),
                 ),
               ],
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: const TextStyle(color: AppColors.danger),
-              ),
             ],
-          ],
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('tx_save_button'),
+            onPressed: _submit,
+            child: Text(isEdit ? 'Save' : 'Add'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          key: const Key('tx_save_button'),
-          onPressed: _submit,
-          child: Text(isEdit ? 'Save' : 'Add'),
-        ),
-      ],
     );
   }
 }
