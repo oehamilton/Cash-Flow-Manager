@@ -1,5 +1,5 @@
 /// Current on-disk schema version for Cash Flow Manager databases.
-const int kSchemaVersion = 2;
+const int kSchemaVersion = 3;
 
 /// DDL applied when creating schema v1 (base tables).
 abstract final class SchemaV1 {
@@ -121,6 +121,16 @@ CREATE INDEX idx_audit_log_at ON audit_log(at)
 ''',
     '''
 CREATE INDEX idx_audit_log_category_at ON audit_log(category, at)
+''',
+  ];
+}
+
+/// Schema v3: checking min-balance buffer for extra-payment / register warnings.
+abstract final class SchemaV3 {
+  static const List<String> migrationStatements = [
+    '''
+ALTER TABLE accounts
+ADD COLUMN min_balance_cents INTEGER NOT NULL DEFAULT 0
 ''',
   ];
 }

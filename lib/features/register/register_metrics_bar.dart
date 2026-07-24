@@ -10,9 +10,13 @@ class RegisterMetricsBar extends StatelessWidget {
   const RegisterMetricsBar({
     super.key,
     required this.metrics,
+    this.minBalanceCents = 0,
   });
 
   final RegisterMetrics metrics;
+
+  /// Checking soft floor; trough chips warn in burnt orange when below it.
+  final int minBalanceCents;
 
   @override
   Widget build(BuildContext context) {
@@ -37,16 +41,22 @@ class RegisterMetricsBar extends StatelessWidget {
                 label: 'Today',
                 valueKey: const Key('register_metric_today'),
                 cents: metrics.todayCents,
+                warnBelowMinBalance: true,
+                minBalanceCents: minBalanceCents,
               ),
               _MetricChip(
                 label: '4-wk low',
                 valueKey: const Key('register_metric_trough_4w'),
                 cents: metrics.trough4WeeksCents,
+                warnBelowMinBalance: true,
+                minBalanceCents: minBalanceCents,
               ),
               _MetricChip(
                 label: '8-wk low',
                 valueKey: const Key('register_metric_trough_8w'),
                 cents: metrics.trough8WeeksCents,
+                warnBelowMinBalance: true,
+                minBalanceCents: minBalanceCents,
               ),
             ];
             if (wide) {
@@ -79,19 +89,21 @@ class _MetricChip extends StatelessWidget {
     required this.label,
     required this.valueKey,
     required this.cents,
+    this.warnBelowMinBalance = false,
+    this.minBalanceCents = 0,
   });
 
   final String label;
   final Key valueKey;
   final int? cents;
+  final bool warnBelowMinBalance;
+  final int minBalanceCents;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final display = cents == null ? '—' : formatCents(cents!);
-    final valueColor = cents == null
-        ? AppColors.onSurfaceMuted
-        : (cents! < 0 ? AppColors.danger : AppColors.onSurface);
+    final valueColor = _valueColor(cents);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -123,5 +135,20 @@ class _MetricChip extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Color _valueColor(int? value) {
+    if (value == null) {
+      return AppColors.onSurfaceMuted;
+    }
+    if (value < 0) {
+      return AppColors.danger;
+    }
+    if (warnBelowMinBalance &&
+        minBalanceCents > 0 &&
+        value < minBalanceCents) {
+      return AppColors.warningBurnt;
+    }
+    return AppColors.onSurface;
   }
 }

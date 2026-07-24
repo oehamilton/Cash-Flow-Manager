@@ -47,7 +47,7 @@ void main() {
       expect(tables, contains('audit_log'));
     });
 
-    test('migrates v1 database to v2 with backup', () {
+    test('migrates v1 database through v2 to current with backup', () {
       final raw = sqlite3.open(dbPath);
       try {
         raw.execute("PRAGMA key = 'migrate-key'");
@@ -68,7 +68,7 @@ void main() {
 
       expect(
         migrated.select('SELECT version FROM schema_version').first['version'],
-        2,
+        kSchemaVersion,
       );
       expect(File('$dbPath.pre-v1.bak').existsSync(), isTrue);
       expect(
@@ -78,6 +78,42 @@ void main() {
             )
             .isNotEmpty,
         isTrue,
+      );
+      final cols = migrated.select('PRAGMA table_info(accounts)');
+      expect(
+        cols.map((r) => r['name'] as String),
+        contains('min_balance_cents'),
+      );
+    });
+
+    test('migrates v2 database to v3 with min_balance_cents', () {
+      final raw = sqlite3.open(dbPath);
+      try {
+        raw.execute("PRAGMA key = 'migrate-v2-key'");
+        DatabaseOpener.createV2OnlyForTests(raw);
+        expect(
+          raw.select('SELECT version FROM schema_version').first['version'],
+          2,
+        );
+      } finally {
+        raw.close();
+      }
+
+      final migrated = DatabaseOpener.open(
+        databasePath: dbPath,
+        passphrase: 'migrate-v2-key',
+      );
+      addTearDown(migrated.close);
+
+      expect(
+        migrated.select('SELECT version FROM schema_version').first['version'],
+        3,
+      );
+      expect(File('$dbPath.pre-v2.bak').existsSync(), isTrue);
+      final cols = migrated.select('PRAGMA table_info(accounts)');
+      expect(
+        cols.map((r) => r['name'] as String),
+        contains('min_balance_cents'),
       );
     });
   });

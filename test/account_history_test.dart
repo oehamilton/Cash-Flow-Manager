@@ -49,7 +49,7 @@ void main() {
         AccountDraft(
           name: 'Card',
           type: AccountType.creditCard,
-          openingBalanceCents: -100000,
+          openingBalanceCents: 100000,
           openingDate: DateTime(2026, 1, 1),
         ),
       );
@@ -59,7 +59,7 @@ void main() {
           accountId: cardId,
           date: DateTime(2026, 6, 10),
           payee: 'Interest',
-          amountCents: -4500,
+          amountCents: 4500,
           interestCents: 4500,
         ),
         asOf: DateTime(2026, 7, 15),
@@ -69,7 +69,7 @@ void main() {
           accountId: cardId,
           date: DateTime(2026, 7, 5),
           payee: 'Payment',
-          amountCents: 20000,
+          amountCents: -20000,
           interestCents: 2000,
           principalCents: 18000,
         ),
@@ -83,12 +83,12 @@ void main() {
       expect(series, hasLength(12));
       expect(series.last.monthKey, '2026-07');
       expect(series.last.interestPaidCents, 2000);
-      // Opening -100000 + June interest -4500 + July payment +20000
-      expect(series.last.balanceCents, -84500);
+      // Opening 100000 + June interest +4500 + July payment -20000
+      expect(series.last.balanceCents, 84500);
 
       final june = series.firstWhere((p) => p.monthKey == '2026-06');
       expect(june.interestPaidCents, 4500);
-      expect(june.balanceCents, -104500);
+      expect(june.balanceCents, 104500);
     });
   });
 }

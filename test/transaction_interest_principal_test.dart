@@ -44,7 +44,7 @@ void main() {
       AccountDraft(
         name: 'Visa',
         type: AccountType.creditCard,
-        openingBalanceCents: -50000,
+        openingBalanceCents: 50000,
         openingDate: DateTime(2026, 7, 1),
       ),
     );

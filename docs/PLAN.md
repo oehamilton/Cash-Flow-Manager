@@ -125,6 +125,7 @@ accounts(
   is_primary INTEGER NOT NULL DEFAULT 0,  -- exactly one checking primary
   is_archived INTEGER NOT NULL DEFAULT 0,
   include_in_debt_list INTEGER NOT NULL DEFAULT 0, -- 1 for loan/credit_card/etc.
+  min_balance_cents INTEGER NOT NULL DEFAULT 0, -- checking soft floor / cash buffer (schema v3)
   opening_balance_cents INTEGER NOT NULL DEFAULT 0,
   opening_date TEXT NOT NULL,       -- date
   created_at TEXT NOT NULL,
@@ -175,6 +176,7 @@ transactions(
 -- balance_snapshots deferred; derive from transactions for v1
 
 -- Schema v2: append-only activity / audit trail (access + data changes)
+-- Schema v3: accounts.min_balance_cents (checking cash buffer)
 audit_log(
   id TEXT PRIMARY KEY,
   at TEXT NOT NULL,                 -- ISO-8601 UTC
@@ -194,7 +196,7 @@ lock_meta is NOT in DB — filesystem .cfm.lock beside the db file.
 
 **Running balance:** computed in query/UI from `opening_balance` + ordered transactions (not stored per row in v1, unless performance requires a cached column later).
 
-**Sign convention:** each register is account-centric (payment on a credit card register reduces balance owed — document UI so “payment” is intuitive per account type).
+**Sign convention:** each register is account-centric (`+` inflow / increase, `-` outflow / decrease for that register). For **loans and credit cards**, a **positive** balance means you owe them; **negative** means a credit (they owe you). A payment on those registers is a negative amount (reduces balance owed).
 
 **Indexes:** `(account_id, date, id)`, `(account_id, is_cleared)`, `(recurrence_rule_id)`, `audit_log(at)`, `audit_log(category, at)`.
 
@@ -423,7 +425,7 @@ Worth deciding now so they don’t surprise us mid-build:
 ### Phase 4 — Trends & payoff aids
 - **4.1** Interest/principal fields on txs where relevant
 - **4.2** Account detail 12-month chart (balance + interest paid) — **chart style gate**
-- **4.3** Extra-payment hint from primary trough + APR-sorted debts
+- **4.3** Extra-payment hint from primary trough + APR-sorted debts; checking min-balance buffer
 - **Exit:** supporting accounts help payoff decisions
 
 ### Phase 5 — Polish & ship

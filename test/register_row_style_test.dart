@@ -82,4 +82,28 @@ void main() {
     expect(style.background, AppColors.rowCleared);
     expect(style.kind, RegisterRowKind.cleared);
   });
+
+  test('running balance below min balance uses burnt-orange warning', () {
+    final style = RegisterRowStyle.forTransaction(
+      tx(cleared: false, date: DateTime(2026, 7, 10)),
+      asOf: asOf,
+      runningBalanceCents: 40000,
+      minBalanceCents: 50000,
+    );
+    expect(style.belowMinBalance, isTrue);
+    expect(style.background, AppColors.rowBelowMinBalance);
+    expect(style.accent, AppColors.warningBurnt);
+    expect(style.kind, RegisterRowKind.unclearedPast);
+  });
+
+  test('min balance of zero does not warn', () {
+    final style = RegisterRowStyle.forTransaction(
+      tx(cleared: false, date: DateTime(2026, 7, 10)),
+      asOf: asOf,
+      runningBalanceCents: -100,
+      minBalanceCents: 0,
+    );
+    expect(style.belowMinBalance, isFalse);
+    expect(style.background, AppColors.rowUnclearedPast);
+  });
 }

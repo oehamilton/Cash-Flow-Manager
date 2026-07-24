@@ -180,7 +180,7 @@ void main() {
       AccountDraft(
         name: 'Travel Card',
         type: AccountType.creditCard,
-        openingBalanceCents: -20000,
+        openingBalanceCents: 20000,
         openingDate: DateTime(2026, 7, 1),
       ),
     );

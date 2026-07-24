@@ -6,6 +6,7 @@ import 'account_type.dart';
 import 'audit_categories.dart';
 import 'audit_log_repository.dart';
 import 'database_session.dart';
+import 'extra_payment_hint.dart';
 
 class PrimaryCheckingDraft {
   const PrimaryCheckingDraft({
@@ -93,23 +94,18 @@ WHERE account_id = ?
     var accounts = listAccounts(includeArchived: includeArchived);
     if (debtsOnly) {
       accounts = accounts.where((a) => a.includeInDebtList).toList();
-      accounts.sort((a, b) {
-        final balA = balanceCents(a.id);
-        final balB = balanceCents(b.id);
-        final byBalance = balA.compareTo(balB); // most negative (owed) first
-        if (byBalance != 0) {
-          return byBalance;
-        }
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      });
     }
-    return [
+    final summaries = [
       for (final account in accounts)
         AccountSummary(
           account: account,
           balanceCents: balanceCents(account.id),
         ),
     ];
+    if (debtsOnly) {
+      return ExtraPaymentHint.sortByAprDesc(summaries);
+    }
+    return summaries;
   }
 
   /// Creates the primary checking account and an opening-balance transaction.
@@ -168,10 +164,10 @@ INSERT INTO accounts (
   id, name, type, institution, account_number, login_url, login_username,
   login_password, contact_name, contact_phone, contact_email, notes,
   interest_rate_apr, minimum_payment_cents, payment_due_day, currency_code,
-  is_primary, is_archived, include_in_debt_list,
+  is_primary, is_archived, include_in_debt_list, min_balance_cents,
   opening_balance_cents, opening_date, created_at, updated_at
 ) VALUES (
-  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?
+  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?
 )
 ''',
         [
@@ -193,6 +189,7 @@ INSERT INTO accounts (
           draft.currencyCode,
           draft.isPrimary ? 1 : 0,
           includeInDebt ? 1 : 0,
+          draft.minBalanceCents < 0 ? 0 : draft.minBalanceCents,
           draft.openingBalanceCents,
           openingDate,
           now,
@@ -288,6 +285,9 @@ INSERT INTO transactions (
     final currencyCode = patch.currencyCode ?? existing.currencyCode;
     final includeInDebtList =
         patch.includeInDebtList ?? existing.includeInDebtList;
+    final minBalanceCents = patch.minBalanceCents == null
+        ? existing.minBalanceCents
+        : (patch.minBalanceCents! < 0 ? 0 : patch.minBalanceCents!);
 
     _db.execute('BEGIN IMMEDIATE');
     try {
@@ -297,7 +297,8 @@ UPDATE accounts SET
   name = ?, type = ?, institution = ?, account_number = ?, login_url = ?,
   login_username = ?, login_password = ?, contact_name = ?, contact_phone = ?,
   contact_email = ?, notes = ?, interest_rate_apr = ?, minimum_payment_cents = ?,
-  payment_due_day = ?, currency_code = ?, include_in_debt_list = ?, updated_at = ?
+  payment_due_day = ?, currency_code = ?, include_in_debt_list = ?,
+  min_balance_cents = ?, updated_at = ?
 WHERE id = ?
 ''',
         [
@@ -317,6 +318,7 @@ WHERE id = ?
           paymentDueDay,
           currencyCode,
           includeInDebtList ? 1 : 0,
+          minBalanceCents,
           now,
           id,
         ],

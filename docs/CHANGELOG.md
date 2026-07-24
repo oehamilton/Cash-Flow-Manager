@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [4.3.0] — 2026-07-24
+
+### Added
+
+- Phase 4.3 extra-payment hint from primary 4-week trough + APR-sorted debts
+- Checking `min_balance_cents` cash buffer (schema v3): suggested extra = 4-wk trough − buffer; burnt-orange register/trough warnings when below it
+- Red target icon on suggested debt (replaces "· target" text)
+
+### Changed
+
+- Debt/loan/card registers: positive balance = amount owed; negative = credit (they owe you)
+- Extra-payment suggestion is `max(0, 4-wk trough − min balance)`
+
 ## [4.2.0] — 2026-07-24
 
 ### Added

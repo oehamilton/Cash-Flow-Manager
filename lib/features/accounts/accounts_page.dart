@@ -238,7 +238,11 @@ class _AccountRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final account = summary.account;
-    final balanceColor = summary.balanceCents < 0
+    // Checking/savings: negative is overdrawn. Debt list: positive is owed.
+    final isDebt = account.includeInDebtList;
+    final balanceColor = (isDebt
+            ? summary.balanceCents > 0
+            : summary.balanceCents < 0)
         ? AppColors.danger
         : AppColors.onSurface;
 

@@ -400,7 +400,11 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    if (metrics != null) RegisterMetricsBar(metrics: metrics),
+                    if (metrics != null)
+                      RegisterMetricsBar(
+                        metrics: metrics,
+                        minBalanceCents: account?.minBalanceCents ?? 0,
+                      ),
                     const RegisterRowLegend(),
                     const SizedBox(height: 8),
                     RegisterFilterBar(
@@ -475,6 +479,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                             _RegisterLedgerRow(
                                               entry: entry,
                                               dateLabel: _dateLabel(tx.date),
+                                              minBalanceCents:
+                                                  account?.minBalanceCents ?? 0,
                                               onClearedChanged:
                                                   tx.isOpeningBalance
                                                       ? null
@@ -584,6 +590,7 @@ class _RegisterLedgerRow extends StatelessWidget {
   const _RegisterLedgerRow({
     required this.entry,
     required this.dateLabel,
+    this.minBalanceCents = 0,
     this.onClearedChanged,
     this.onEdit,
     this.onDelete,
@@ -591,6 +598,7 @@ class _RegisterLedgerRow extends StatelessWidget {
 
   final RegisterEntry entry;
   final String dateLabel;
+  final int minBalanceCents;
   final ValueChanged<bool>? onClearedChanged;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -599,7 +607,12 @@ class _RegisterLedgerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final tx = entry.transaction;
-    final style = RegisterRowStyle.forTransaction(tx);
+    final balance = entry.runningBalanceCents;
+    final style = RegisterRowStyle.forTransaction(
+      tx,
+      runningBalanceCents: balance,
+      minBalanceCents: minBalanceCents,
+    );
     final basePayee =
         tx.payee == null || tx.payee!.isEmpty ? '(no payee)' : tx.payee!;
     final payeeLabel = tx.isUserOverridden ? '$basePayee · edited' : basePayee;
@@ -612,7 +625,6 @@ class _RegisterLedgerRow extends StatelessWidget {
     );
     final debit = entry.debitCents;
     final credit = entry.creditCents;
-    final balance = entry.runningBalanceCents;
 
     return ColoredBox(
       key: Key('register_tx_style_${tx.id}'),

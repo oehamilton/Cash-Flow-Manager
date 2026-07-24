@@ -15,9 +15,13 @@ abstract final class AppColors {
   static const Color danger = Color(0xFFE07A6A);
   static const Color warning = Color(0xFFD4A84B);
 
+  /// Burnt orange for min-balance buffer warnings (not danger-red).
+  static const Color warningBurnt = Color(0xFFC46A2E);
+
   /// Register row accents (Phase 2.5 cleared/uncleared; Phase 3.3 forecast).
   static const Color rowCleared = Color(0xFF1A3A32);
   static const Color rowUnclearedPast = Color(0xFF12282C);
   static const Color rowAutoFuture = Color(0xFF16384A);
   static const Color rowManualFuture = Color(0xFF3A2E16);
+  static const Color rowBelowMinBalance = Color(0xFF3A2416);
 }

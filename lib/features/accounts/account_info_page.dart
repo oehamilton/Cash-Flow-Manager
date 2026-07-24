@@ -46,6 +46,7 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
   final _notesController = TextEditingController();
   final _aprController = TextEditingController();
   final _minPaymentController = TextEditingController();
+  final _minBalanceController = TextEditingController();
 
   Account? _account;
   AccountType _type = AccountType.checking;
@@ -77,6 +78,7 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
     _notesController.dispose();
     _aprController.dispose();
     _minPaymentController.dispose();
+    _minBalanceController.dispose();
     super.dispose();
   }
 
@@ -120,6 +122,9 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
     _minPaymentController.text = account.minimumPaymentCents == null
         ? ''
         : _centsToEditable(account.minimumPaymentCents!);
+    _minBalanceController.text = account.minBalanceCents <= 0
+        ? ''
+        : _centsToEditable(account.minBalanceCents);
     _type = account.type;
     _includeInDebtList = account.includeInDebtList;
     _dueDay = account.paymentDueDay;
@@ -147,6 +152,7 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
     try {
       final aprText = _aprController.text.trim();
       final minText = _minPaymentController.text.trim();
+      final minBalanceText = _minBalanceController.text.trim();
       repo.update(
         widget.accountId,
         AccountUpdate(
@@ -170,6 +176,11 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
           paymentDueDay: _dueDay,
           clearPaymentDueDay: _dueDay == null,
           includeInDebtList: _includeInDebtList,
+          minBalanceCents: _type == AccountType.checking
+              ? (minBalanceText.isEmpty
+                  ? 0
+                  : parseDollarsToCents(minBalanceText))
+              : 0,
         ),
       );
       _load();
@@ -386,6 +397,31 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
                             labelText: 'Account number',
                           ),
                         ),
+                        if (_type == AccountType.checking) ...[
+                          const SizedBox(height: 20),
+                          _sectionTitle(textTheme, 'Cash buffer'),
+                          TextField(
+                            key: const Key('account_info_min_balance'),
+                            controller: _minBalanceController,
+                            enabled: !_busy,
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9\$\.,]'),
+                              ),
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Minimum balance',
+                              helperText:
+                                  'Reserved buffer for unexpected expenses. '
+                                  'Suggested extras = 4-week low − this amount; '
+                                  'register rows and troughs warn when below it.',
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 20),
                         _sectionTitle(textTheme, 'Credentials'),
                         Text(

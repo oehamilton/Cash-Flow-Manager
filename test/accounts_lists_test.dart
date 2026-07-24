@@ -41,7 +41,7 @@ void main() {
           interestRateApr: 22.9,
           minimumPaymentCents: 4500,
           paymentDueDay: 12,
-          openingBalanceCents: -80000,
+          openingBalanceCents: 80000,
           openingDate: DateTime(2026, 7, 1),
         ),
       );
@@ -49,7 +49,7 @@ void main() {
       final debts = repo.listSummaries(debtsOnly: true);
       expect(debts, hasLength(1));
       expect(debts.single.account.name, 'Card');
-      expect(debts.single.balanceCents, -80000);
+      expect(debts.single.balanceCents, 80000);
     });
 
     test('listSummaries includes primary balance for accounts list', () async {
@@ -69,7 +69,7 @@ void main() {
           interestRateApr: 19.99,
           minimumPaymentCents: 3500,
           paymentDueDay: 15,
-          openingBalanceCents: -25000,
+          openingBalanceCents: 25000,
           openingDate: DateTime(2026, 7, 1),
         ),
       );
@@ -79,11 +79,11 @@ void main() {
       expect(rows.first.account.isPrimary, isTrue);
       expect(rows.first.balanceCents, 10000);
       expect(rows.last.account.name, 'Travel Card');
-      expect(rows.last.balanceCents, -25000);
+      expect(rows.last.balanceCents, 25000);
 
       final debts = repo.listSummaries(debtsOnly: true);
       expect(debts.single.account.name, 'Travel Card');
-      expect(formatCents(debts.single.balanceCents), r'-$250.00');
+      expect(formatCents(debts.single.balanceCents), r'$250.00');
       expect(debts.single.account.interestRateApr, 19.99);
       expect(debts.single.account.minimumPaymentCents, 3500);
     });
