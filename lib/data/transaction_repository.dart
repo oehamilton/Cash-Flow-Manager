@@ -142,6 +142,11 @@ LIMIT ?
     final memo = _nullIfBlank(draft.memo);
     final date = _dateOnly(draft.date);
     final source = TransactionSource.manualForDate(draft.date, asOf: asOf);
+    validateInterestPrincipalSplit(
+      amountCents: draft.amountCents,
+      interestCents: draft.interestCents,
+      principalCents: draft.principalCents,
+    );
     final now = DateTime.now().toUtc().toIso8601String();
     final id = _uuid.v4();
 
@@ -151,8 +156,10 @@ LIMIT ?
         '''
 INSERT INTO transactions (
   id, account_id, date, payee, memo, amount_cents,
-  is_cleared, cleared_at, source, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)
+  is_cleared, cleared_at, source,
+  interest_cents, principal_cents,
+  created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?)
 ''',
         [
           id,
@@ -162,6 +169,8 @@ INSERT INTO transactions (
           memo,
           draft.amountCents,
           source,
+          draft.interestCents,
+          draft.principalCents,
           now,
           now,
         ],
@@ -179,6 +188,10 @@ INSERT INTO transactions (
           'payee': payee,
           'amount_cents': draft.amountCents,
           'source': source,
+          if (draft.interestCents != null)
+            'interest_cents': draft.interestCents,
+          if (draft.principalCents != null)
+            'principal_cents': draft.principalCents,
         },
       );
 
@@ -317,6 +330,27 @@ WHERE id = ?
       nextMemo = existing.memo;
     }
     final amount = patch.amountCents ?? existing.amountCents;
+    final int? nextInterest;
+    if (patch.clearInterest) {
+      nextInterest = null;
+    } else if (patch.interestCents != null) {
+      nextInterest = patch.interestCents;
+    } else {
+      nextInterest = existing.interestCents;
+    }
+    final int? nextPrincipal;
+    if (patch.clearPrincipal) {
+      nextPrincipal = null;
+    } else if (patch.principalCents != null) {
+      nextPrincipal = patch.principalCents;
+    } else {
+      nextPrincipal = existing.principalCents;
+    }
+    validateInterestPrincipalSplit(
+      amountCents: amount,
+      interestCents: nextInterest,
+      principalCents: nextPrincipal,
+    );
     final nextSource = TransactionSource.isUserManual(existing.source)
         ? TransactionSource.manualForDate(
             patch.date ?? existing.date,
@@ -336,6 +370,8 @@ UPDATE transactions SET
   memo = ?,
   amount_cents = ?,
   source = ?,
+  interest_cents = ?,
+  principal_cents = ?,
   is_user_overridden = CASE WHEN ? = 1 THEN 1 ELSE is_user_overridden END,
   updated_at = ?
 WHERE id = ?
@@ -346,6 +382,8 @@ WHERE id = ?
           nextMemo,
           amount,
           nextSource,
+          nextInterest,
+          nextPrincipal,
           markOverridden ? 1 : 0,
           now,
           id,
@@ -366,6 +404,10 @@ WHERE id = ?
           'amount_cents': updated.amountCents,
           'source': updated.source,
           if (updated.isUserOverridden) 'is_user_overridden': true,
+          if (updated.interestCents != null)
+            'interest_cents': updated.interestCents,
+          if (updated.principalCents != null)
+            'principal_cents': updated.principalCents,
         },
       );
 

@@ -31,7 +31,7 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-3.4 | Edit generated until cleared | 3.4 | `done` | `test/recurrence_edit_generated_test.dart` |
 | F-3.5 | 4-week / 8-week trough metrics | 3.5 | `done` | `test/register_metrics_test.dart` |
 | F-3.6 | Optional forecast visuals pass | 3.6 | `deferred` | |
-| F-4.1 | Interest / principal fields on txs | 4.1 | `planned` | |
+| F-4.1 | Interest / principal fields on txs | 4.1 | `done` | `test/transaction_interest_principal_test.dart` |
 | F-4.2 | 12-month account chart | 4.2 | `planned` | |
 | F-4.3 | Extra-payment hint | 4.3 | `planned` | |
 | F-5.1 | Polish, empty states, idle lock, Activity log viewer | 5.1 | `planned` | |

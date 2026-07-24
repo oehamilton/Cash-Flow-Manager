@@ -96,6 +96,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final result = await TransactionEditorDialog.show(
       context,
       suggestions: repo.payeeSuggestions(account.id),
+      showInterestPrincipal: account.type.showsInterestPrincipal,
     );
     if (result == null || !mounted) {
       return;
@@ -108,6 +109,8 @@ class _RegisterPageState extends State<RegisterPage> {
           payee: result.payee,
           memo: result.memo,
           amountCents: result.amountCents,
+          interestCents: result.interestCents,
+          principalCents: result.principalCents,
         ),
       );
       _lastMaterializedAccountId = null;
@@ -117,7 +120,7 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
-  Future<void> _editTransaction(Transaction tx) async {
+  Future<void> _editTransaction(Account account, Transaction tx) async {
     if (tx.isOpeningBalance || tx.isCleared) {
       return;
     }
@@ -129,6 +132,7 @@ class _RegisterPageState extends State<RegisterPage> {
       context,
       suggestions: repo.payeeSuggestions(tx.accountId),
       initial: tx,
+      showInterestPrincipal: account.type.showsInterestPrincipal,
     );
     if (result == null || !mounted) {
       return;
@@ -143,6 +147,10 @@ class _RegisterPageState extends State<RegisterPage> {
           memo: result.memo,
           clearMemo: result.memo == null || result.memo!.trim().isEmpty,
           amountCents: result.amountCents,
+          interestCents: result.interestCents,
+          clearInterest: result.clearInterest,
+          principalCents: result.principalCents,
+          clearPrincipal: result.clearPrincipal,
         ),
       );
       setState(() => _error = null);
@@ -478,8 +486,10 @@ class _RegisterPageState extends State<RegisterPage> {
                                               onEdit: tx.isOpeningBalance ||
                                                       tx.isCleared
                                                   ? null
-                                                  : () =>
-                                                      _editTransaction(tx),
+                                                  : () => _editTransaction(
+                                                        account!,
+                                                        tx,
+                                                      ),
                                               onDelete: tx.isOpeningBalance ||
                                                       tx.isCleared
                                                   ? null
@@ -554,6 +564,22 @@ class _RegisterColumnHeader extends StatelessWidget {
   }
 }
 
+String? _splitLabel(Transaction tx) {
+  final interest = tx.interestCents;
+  final principal = tx.principalCents;
+  if (interest == null && principal == null) {
+    return null;
+  }
+  final parts = <String>[];
+  if (interest != null) {
+    parts.add('Int ${formatCents(interest)}');
+  }
+  if (principal != null) {
+    parts.add('Prin ${formatCents(principal)}');
+  }
+  return parts.join(' · ');
+}
+
 class _RegisterLedgerRow extends StatelessWidget {
   const _RegisterLedgerRow({
     required this.entry,
@@ -577,6 +603,7 @@ class _RegisterLedgerRow extends StatelessWidget {
     final basePayee =
         tx.payee == null || tx.payee!.isEmpty ? '(no payee)' : tx.payee!;
     final payeeLabel = tx.isUserOverridden ? '$basePayee · edited' : basePayee;
+    final splitLabel = _splitLabel(tx);
     final foreground =
         style.mutedForeground ? AppColors.onSurfaceMuted : AppColors.onSurface;
     final mono = textTheme.bodyMedium?.copyWith(
@@ -622,10 +649,26 @@ class _RegisterLedgerRow extends StatelessWidget {
                     child: Text(dateLabel, style: mono),
                   ),
                   Expanded(
-                    child: Text(
-                      payeeLabel,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyMedium?.copyWith(color: foreground),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          payeeLabel,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: foreground,
+                          ),
+                        ),
+                        if (splitLabel != null)
+                          Text(
+                            splitLabel,
+                            key: Key('register_tx_split_${tx.id}'),
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceMuted,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   SizedBox(

@@ -166,6 +166,8 @@ class TransactionDraft {
     this.payee,
     this.memo,
     required this.amountCents,
+    this.interestCents,
+    this.principalCents,
   });
 
   final String accountId;
@@ -173,6 +175,8 @@ class TransactionDraft {
   final String? payee;
   final String? memo;
   final int amountCents;
+  final int? interestCents;
+  final int? principalCents;
 }
 
 /// Patchable transaction fields for updates.
@@ -184,6 +188,10 @@ class TransactionUpdate {
     this.memo,
     this.clearMemo = false,
     this.amountCents,
+    this.interestCents,
+    this.clearInterest = false,
+    this.principalCents,
+    this.clearPrincipal = false,
   });
 
   final DateTime? date;
@@ -192,4 +200,33 @@ class TransactionUpdate {
   final String? memo;
   final bool clearMemo;
   final int? amountCents;
+  final int? interestCents;
+  final bool clearInterest;
+  final int? principalCents;
+  final bool clearPrincipal;
+}
+
+/// Validates optional interest/principal tags against [amountCents].
+void validateInterestPrincipalSplit({
+  required int amountCents,
+  int? interestCents,
+  int? principalCents,
+}) {
+  if (interestCents != null && interestCents < 0) {
+    throw ArgumentError('Interest must be ≥ 0');
+  }
+  if (principalCents != null && principalCents < 0) {
+    throw ArgumentError('Principal must be ≥ 0');
+  }
+  final interest = interestCents ?? 0;
+  final principal = principalCents ?? 0;
+  if (interest == 0 && principal == 0 && interestCents == null && principalCents == null) {
+    return;
+  }
+  final absAmount = amountCents.abs();
+  if (interest + principal > absAmount) {
+    throw ArgumentError(
+      'Interest + principal cannot exceed the transaction amount',
+    );
+  }
 }

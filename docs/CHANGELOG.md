@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [4.1.0] — 2026-07-24
+
+### Added
+
+- Phase 4.1 interest/principal split fields on loan and credit-card transactions
+
 ## [3.5.0] — 2026-07-24
 
 ### Added

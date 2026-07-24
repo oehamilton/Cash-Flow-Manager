@@ -32,6 +32,10 @@ enum AccountType {
   bool get defaultIncludeInDebtList =>
       this == AccountType.loan || this == AccountType.creditCard;
 
+  /// Show optional interest/principal split fields on register txs (Phase 4.1).
+  bool get showsInterestPrincipal =>
+      this == AccountType.loan || this == AccountType.creditCard;
+
   static AccountType parse(String value) {
     return AccountType.values.firstWhere(
       (type) => type.dbValue == value,
