@@ -23,7 +23,7 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-2.2 | Running balance + credit/debit columns + virtualized list | 2.2 | `done` | `test/register_running_balance_test.dart` |
 | F-2.3 | Clear / reconcile + statement ending balance (+ audit) | 2.3 | `done` | `test/transaction_clear_reconcile_test.dart` |
 | F-2.4 | Sticky register header metrics | 2.4 | `done` | `test/register_metrics_test.dart` |
-| F-2.5 | Cleared vs uncleared row styles | 2.5 | `in_progress` | |
+| F-2.5 | Cleared vs uncleared row styles | 2.5 | `done` | `test/register_row_style_test.dart` |
 | F-2.6 | Optional register UI / search / keyboard polish | 2.6 | `deferred` | |
 | F-3.1 | Recurrence rule CRUD | 3.1 | `planned` | |
 | F-3.2 | Materialize ~2 months of instances | 3.2 | `planned` | |
