@@ -1,14 +1,20 @@
 import 'package:sqlite3/sqlite3.dart';
 import 'package:uuid/uuid.dart';
 
+import 'account_repository.dart';
 import 'account_history.dart';
 import 'audit_categories.dart';
 import 'audit_log_repository.dart';
 import 'database_session.dart';
 import 'forecast_trough.dart';
+import 'payee_repository.dart';
+import 'payee_suggestion.dart';
 import 'transaction.dart';
+import 'transfer_amounts.dart';
 
 /// Transaction CRUD scoped by account, with payee history and audit (Phase 2.1).
+///
+/// Phase 6.1 adds linked transfer pairs via [transfer_pair_id].
 class TransactionRepository {
   TransactionRepository(this._session, {Uuid? uuid})
       : _uuid = uuid ?? const Uuid();
@@ -23,6 +29,26 @@ class TransactionRepository {
     final rows = _db.select(
       'SELECT * FROM transactions WHERE id = ? LIMIT 1',
       [id],
+    );
+    if (rows.isEmpty) {
+      return null;
+    }
+    return Transaction.fromRow(rows.first);
+  }
+
+  /// Other leg of a transfer pair, if any.
+  Transaction? transferCounterpart(String id) {
+    final existing = getById(id);
+    if (existing == null || existing.transferPairId == null) {
+      return null;
+    }
+    final rows = _db.select(
+      '''
+SELECT * FROM transactions
+WHERE transfer_pair_id = ? AND id != ?
+LIMIT 1
+''',
+      [existing.transferPairId, id],
     );
     if (rows.isEmpty) {
       return null;
@@ -178,12 +204,59 @@ LIMIT ?
     ];
   }
 
+  /// Account payees + managed payees + history strings (Phase 6).
+  List<PayeeSuggestion> combinedPayeeSuggestions(
+    String accountId, {
+    String prefix = '',
+    int limit = 24,
+  }) {
+    final q = prefix.trim().toLowerCase();
+    final accounts = AccountRepository(_session).listAccounts();
+    final managed = PayeeRepository(_session).listAll();
+    final history = payeeSuggestions(accountId, prefix: prefix, limit: limit);
+    final accountNames = {
+      for (final a in accounts) a.name.toLowerCase(),
+    };
+
+    final out = <PayeeSuggestion>[];
+    for (final account in accounts) {
+      if (account.id == accountId) {
+        continue;
+      }
+      if (q.isNotEmpty && !account.name.toLowerCase().contains(q)) {
+        continue;
+      }
+      out.add(AccountPayeeSuggestion(account));
+    }
+    for (final payee in managed) {
+      if (q.isNotEmpty && !payee.name.toLowerCase().contains(q)) {
+        continue;
+      }
+      out.add(ManagedPayeeSuggestion(payee));
+    }
+    for (final name in history) {
+      if (accountNames.contains(name.toLowerCase())) {
+        continue;
+      }
+      if (managed.any((p) => p.name.toLowerCase() == name.toLowerCase())) {
+        continue;
+      }
+      out.add(TextPayeeSuggestion(name));
+    }
+    return out.take(limit).toList();
+  }
+
   /// Creates a manual transaction and writes an audit row.
   ///
-  /// Future-dated manuals are stored as [TransactionSource.manualFuture]
-  /// (Phase 3.3).
+  /// When [TransactionDraft.transferToAccountId] is set, also creates the
+  /// counterpart leg (Phase 6.1).
   String create(TransactionDraft draft, {DateTime? asOf}) {
     _requireAccount(draft.accountId);
+    final transferTo = draft.transferToAccountId;
+    if (transferTo != null) {
+      return _createTransfer(draft, transferTo, asOf: asOf);
+    }
+
     final payee = _nullIfBlank(draft.payee);
     final memo = _nullIfBlank(draft.memo);
     final date = _dateOnly(draft.date);
@@ -203,9 +276,9 @@ LIMIT ?
 INSERT INTO transactions (
   id, account_id, date, payee, memo, amount_cents,
   is_cleared, cleared_at, source,
-  interest_cents, principal_cents,
+  payee_id, interest_cents, principal_cents,
   created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?, ?, ?)
 ''',
         [
           id,
@@ -215,6 +288,7 @@ INSERT INTO transactions (
           memo,
           draft.amountCents,
           source,
+          draft.payeeId,
           draft.interestCents,
           draft.principalCents,
           now,
@@ -234,6 +308,7 @@ INSERT INTO transactions (
           'payee': payee,
           'amount_cents': draft.amountCents,
           'source': source,
+          if (draft.payeeId != null) 'payee_id': draft.payeeId,
           if (draft.interestCents != null)
             'interest_cents': draft.interestCents,
           if (draft.principalCents != null)
@@ -249,7 +324,138 @@ INSERT INTO transactions (
     }
   }
 
+  String _createTransfer(
+    TransactionDraft draft,
+    String destAccountId, {
+    DateTime? asOf,
+  }) {
+    if (destAccountId == draft.accountId) {
+      throw ArgumentError('Cannot transfer to the same account');
+    }
+    final accounts = AccountRepository(_session);
+    final source = accounts.getById(draft.accountId);
+    final dest = accounts.getById(destAccountId);
+    if (source == null || dest == null) {
+      throw ArgumentError('Account not found');
+    }
+
+    final date = _dateOnly(draft.date);
+    final sourceAmount = draft.amountCents;
+    final destAmount = TransferAmounts.counterpartAmount(
+      sourceType: source.type,
+      destType: dest.type,
+      sourceAmountCents: sourceAmount,
+    );
+    final sourceLabel = dest.name;
+    final destLabel = source.name;
+    final memo = _nullIfBlank(draft.memo);
+    final sourceKind = TransactionSource.manualForDate(draft.date, asOf: asOf);
+    final now = DateTime.now().toUtc().toIso8601String();
+    final pairId = _uuid.v4();
+    final sourceId = _uuid.v4();
+    final destId = _uuid.v4();
+
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      _insertTransferLeg(
+        id: sourceId,
+        accountId: source.id,
+        date: date,
+        payee: sourceLabel,
+        memo: memo,
+        amountCents: sourceAmount,
+        source: sourceKind,
+        transferPairId: pairId,
+        now: now,
+      );
+      _insertTransferLeg(
+        id: destId,
+        accountId: dest.id,
+        date: date,
+        payee: destLabel,
+        memo: memo,
+        amountCents: destAmount,
+        source: sourceKind,
+        transferPairId: pairId,
+        now: now,
+      );
+
+      _audit.append(
+        category: AuditCategory.transaction,
+        action: AuditAction.create,
+        entityType: AuditEntityType.transaction,
+        entityId: sourceId,
+        summary: _summary('Created transfer', sourceLabel, sourceAmount),
+        detail: {
+          'account_id': source.id,
+          'transfer_pair_id': pairId,
+          'counterpart_account_id': dest.id,
+          'counterpart_transaction_id': destId,
+          'date': date,
+          'amount_cents': sourceAmount,
+        },
+      );
+      _audit.append(
+        category: AuditCategory.transaction,
+        action: AuditAction.create,
+        entityType: AuditEntityType.transaction,
+        entityId: destId,
+        summary: _summary('Created transfer', destLabel, destAmount),
+        detail: {
+          'account_id': dest.id,
+          'transfer_pair_id': pairId,
+          'counterpart_account_id': source.id,
+          'counterpart_transaction_id': sourceId,
+          'date': date,
+          'amount_cents': destAmount,
+        },
+      );
+
+      _db.execute('COMMIT');
+      return sourceId;
+    } on Object {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void _insertTransferLeg({
+    required String id,
+    required String accountId,
+    required String date,
+    required String payee,
+    required String? memo,
+    required int amountCents,
+    required String source,
+    required String transferPairId,
+    required String now,
+  }) {
+    _db.execute(
+      '''
+INSERT INTO transactions (
+  id, account_id, date, payee, memo, amount_cents,
+  is_cleared, cleared_at, source,
+  transfer_pair_id, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?, ?)
+''',
+      [
+        id,
+        accountId,
+        date,
+        payee,
+        memo,
+        amountCents,
+        source,
+        transferPairId,
+        now,
+        now,
+      ],
+    );
+  }
+
   /// Marks a transaction cleared or uncleared and writes an audit row.
+  ///
+  /// Clear state is independent per transfer leg (Phase 6.1).
   void setCleared(String id, {required bool cleared}) {
     final existing = getById(id);
     if (existing == null) {
@@ -342,9 +548,8 @@ WHERE id = ?
 
   /// Updates editable fields; opening-balance and cleared rows are protected.
   ///
-  /// Uncleared [TransactionSource.recurringGenerated] rows may be edited
-  /// (Phase 3.4). Edits set [Transaction.isUserOverridden] and keep the
-  /// instance key so rematerialize will not recreate or overwrite them.
+  /// Transfer legs stay in sync for date/amount. Changing away from an account
+  /// payee deletes the counterpart and clears [transfer_pair_id].
   void update(String id, TransactionUpdate patch, {DateTime? asOf}) {
     final existing = getById(id);
     if (existing == null) {
@@ -357,6 +562,295 @@ WHERE id = ?
       throw StateError('Cleared transactions cannot be edited; unclear first');
     }
 
+    final wantsTransfer = patch.transferToAccountId != null;
+    final clearTransfer = patch.clearTransfer;
+    final wasTransfer = existing.transferPairId != null;
+
+    if (wantsTransfer || (wasTransfer && !clearTransfer)) {
+      _updateTransferAware(existing, patch, asOf: asOf);
+      return;
+    }
+
+    if (wasTransfer && clearTransfer) {
+      _unlinkAndUpdate(existing, patch, asOf: asOf);
+      return;
+    }
+
+    _updateSingle(existing, patch, asOf: asOf);
+  }
+
+  void _updateTransferAware(
+    Transaction existing,
+    TransactionUpdate patch, {
+    DateTime? asOf,
+  }) {
+    final accounts = AccountRepository(_session);
+    final sourceAccount = accounts.getById(existing.accountId)!;
+    final counterpart = transferCounterpart(existing.id);
+
+    final nextDestId = patch.transferToAccountId ??
+        counterpart?.accountId;
+    if (nextDestId == null) {
+      throw StateError('Transfer counterpart missing');
+    }
+    if (nextDestId == existing.accountId) {
+      throw ArgumentError('Cannot transfer to the same account');
+    }
+    final destAccount = accounts.getById(nextDestId);
+    if (destAccount == null) {
+      throw ArgumentError('Account not found');
+    }
+
+    final nextDate =
+        patch.date != null ? _dateOnly(patch.date!) : _dateOnly(existing.date);
+    final amount = patch.amountCents ?? existing.amountCents;
+    final destAmount = TransferAmounts.counterpartAmount(
+      sourceType: sourceAccount.type,
+      destType: destAccount.type,
+      sourceAmountCents: amount,
+    );
+    final String? nextMemo;
+    if (patch.clearMemo) {
+      nextMemo = null;
+    } else if (patch.memo != null) {
+      nextMemo = _nullIfBlank(patch.memo);
+    } else {
+      nextMemo = existing.memo;
+    }
+    final nextSource = TransactionSource.isUserManual(existing.source)
+        ? TransactionSource.manualForDate(
+            patch.date ?? existing.date,
+            asOf: asOf,
+          )
+        : existing.source;
+    final markOverridden = existing.isRecurringGenerated;
+    final now = DateTime.now().toUtc().toIso8601String();
+    final pairId = existing.transferPairId ?? _uuid.v4();
+
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      if (counterpart != null && counterpart.isCleared) {
+        throw StateError(
+          'Counterpart transfer is cleared; unclear it before editing',
+        );
+      }
+
+      _db.execute(
+        '''
+UPDATE transactions SET
+  date = ?,
+  payee = ?,
+  memo = ?,
+  amount_cents = ?,
+  source = ?,
+  transfer_pair_id = ?,
+  payee_id = NULL,
+  interest_cents = NULL,
+  principal_cents = NULL,
+  is_user_overridden = CASE WHEN ? = 1 THEN 1 ELSE is_user_overridden END,
+  updated_at = ?
+WHERE id = ?
+''',
+        [
+          nextDate,
+          destAccount.name,
+          nextMemo,
+          amount,
+          nextSource,
+          pairId,
+          markOverridden ? 1 : 0,
+          now,
+          existing.id,
+        ],
+      );
+
+      if (counterpart == null) {
+        final destId = _uuid.v4();
+        _insertTransferLeg(
+          id: destId,
+          accountId: destAccount.id,
+          date: nextDate,
+          payee: sourceAccount.name,
+          memo: nextMemo,
+          amountCents: destAmount,
+          source: nextSource,
+          transferPairId: pairId,
+          now: now,
+        );
+      } else {
+        final destSource = TransactionSource.isUserManual(counterpart.source)
+            ? nextSource
+            : counterpart.source;
+        final destOverride = counterpart.isRecurringGenerated;
+        _db.execute(
+          '''
+UPDATE transactions SET
+  account_id = ?,
+  date = ?,
+  payee = ?,
+  memo = ?,
+  amount_cents = ?,
+  source = ?,
+  transfer_pair_id = ?,
+  payee_id = NULL,
+  interest_cents = NULL,
+  principal_cents = NULL,
+  is_user_overridden = CASE WHEN ? = 1 THEN 1 ELSE is_user_overridden END,
+  updated_at = ?
+WHERE id = ?
+''',
+          [
+            destAccount.id,
+            nextDate,
+            sourceAccount.name,
+            nextMemo,
+            destAmount,
+            destSource,
+            pairId,
+            destOverride ? 1 : 0,
+            now,
+            counterpart.id,
+          ],
+        );
+      }
+
+      final updated = getById(existing.id)!;
+      _audit.append(
+        category: AuditCategory.transaction,
+        action: AuditAction.update,
+        entityType: AuditEntityType.transaction,
+        entityId: existing.id,
+        summary: _summary('Updated transfer', updated.payee, updated.amountCents),
+        detail: {
+          'account_id': updated.accountId,
+          'transfer_pair_id': pairId,
+          'counterpart_account_id': destAccount.id,
+          'date': nextDate,
+          'amount_cents': updated.amountCents,
+        },
+      );
+
+      _db.execute('COMMIT');
+    } on Object {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void _unlinkAndUpdate(
+    Transaction existing,
+    TransactionUpdate patch, {
+    DateTime? asOf,
+  }) {
+    final counterpart = transferCounterpart(existing.id);
+    if (counterpart != null && counterpart.isCleared) {
+      throw StateError(
+        'Counterpart transfer is cleared; unclear it before unlinking',
+      );
+    }
+    final now = DateTime.now().toUtc().toIso8601String();
+
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      if (counterpart != null) {
+        _db.execute('DELETE FROM transactions WHERE id = ?', [counterpart.id]);
+        _audit.append(
+          category: AuditCategory.transaction,
+          action: AuditAction.delete,
+          entityType: AuditEntityType.transaction,
+          entityId: counterpart.id,
+          summary: _summary(
+            'Deleted transfer leg',
+            counterpart.payee,
+            counterpart.amountCents,
+          ),
+          detail: {
+            'account_id': counterpart.accountId,
+            'transfer_pair_id': existing.transferPairId,
+            'unlinked_from': existing.id,
+          },
+        );
+      }
+
+      final nextDate =
+          patch.date != null ? _dateOnly(patch.date!) : _dateOnly(existing.date);
+      final String? nextPayee;
+      if (patch.clearPayee) {
+        nextPayee = null;
+      } else if (patch.payee != null) {
+        nextPayee = _nullIfBlank(patch.payee);
+      } else {
+        nextPayee = existing.payee;
+      }
+      final String? nextMemo;
+      if (patch.clearMemo) {
+        nextMemo = null;
+      } else if (patch.memo != null) {
+        nextMemo = _nullIfBlank(patch.memo);
+      } else {
+        nextMemo = existing.memo;
+      }
+      final amount = patch.amountCents ?? existing.amountCents;
+      final nextSource = TransactionSource.isUserManual(existing.source)
+          ? TransactionSource.manualForDate(
+              patch.date ?? existing.date,
+              asOf: asOf,
+            )
+          : existing.source;
+      final nextPayeeId = patch.clearPayeeId
+          ? null
+          : (patch.payeeId ?? existing.payeeId);
+
+      _db.execute(
+        '''
+UPDATE transactions SET
+  date = ?,
+  payee = ?,
+  memo = ?,
+  amount_cents = ?,
+  source = ?,
+  transfer_pair_id = NULL,
+  payee_id = ?,
+  updated_at = ?
+WHERE id = ?
+''',
+        [
+          nextDate,
+          nextPayee,
+          nextMemo,
+          amount,
+          nextSource,
+          nextPayeeId,
+          now,
+          existing.id,
+        ],
+      );
+
+      _audit.append(
+        category: AuditCategory.transaction,
+        action: AuditAction.update,
+        entityType: AuditEntityType.transaction,
+        entityId: existing.id,
+        summary: _summary('Unlinked transfer', nextPayee, amount),
+        detail: {
+          'account_id': existing.accountId,
+          'date': nextDate,
+          'amount_cents': amount,
+        },
+      );
+
+      _db.execute('COMMIT');
+    } on Object {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void _updateSingle(
+    Transaction existing,
+    TransactionUpdate patch, {
+    DateTime? asOf,
+  }) {
     final nextDate =
         patch.date != null ? _dateOnly(patch.date!) : _dateOnly(existing.date);
     final String? nextPayee;
@@ -404,6 +898,9 @@ WHERE id = ?
           )
         : existing.source;
     final markOverridden = existing.isRecurringGenerated;
+    final nextPayeeId = patch.clearPayeeId
+        ? null
+        : (patch.payeeId ?? (patch.clearPayee ? null : existing.payeeId));
     final now = DateTime.now().toUtc().toIso8601String();
 
     _db.execute('BEGIN IMMEDIATE');
@@ -416,6 +913,7 @@ UPDATE transactions SET
   memo = ?,
   amount_cents = ?,
   source = ?,
+  payee_id = ?,
   interest_cents = ?,
   principal_cents = ?,
   is_user_overridden = CASE WHEN ? = 1 THEN 1 ELSE is_user_overridden END,
@@ -428,20 +926,21 @@ WHERE id = ?
           nextMemo,
           amount,
           nextSource,
+          nextPayeeId,
           nextInterest,
           nextPrincipal,
           markOverridden ? 1 : 0,
           now,
-          id,
+          existing.id,
         ],
       );
 
-      final updated = getById(id)!;
+      final updated = getById(existing.id)!;
       _audit.append(
         category: AuditCategory.transaction,
         action: AuditAction.update,
         entityType: AuditEntityType.transaction,
-        entityId: id,
+        entityId: existing.id,
         summary: _summary('Updated', updated.payee, updated.amountCents),
         detail: {
           'account_id': updated.accountId,
@@ -450,6 +949,7 @@ WHERE id = ?
           'amount_cents': updated.amountCents,
           'source': updated.source,
           if (updated.isUserOverridden) 'is_user_overridden': true,
+          if (updated.payeeId != null) 'payee_id': updated.payeeId,
           if (updated.interestCents != null)
             'interest_cents': updated.interestCents,
           if (updated.principalCents != null)
@@ -465,6 +965,8 @@ WHERE id = ?
   }
 
   /// Deletes a transaction; opening-balance and cleared rows are protected.
+  ///
+  /// Transfer pairs: both legs are deleted (Phase 6.1).
   void delete(String id) {
     final existing = getById(id);
     if (existing == null) {
@@ -477,8 +979,38 @@ WHERE id = ?
       throw StateError('Cleared transactions cannot be deleted; unclear first');
     }
 
+    final counterpart = transferCounterpart(id);
+    if (counterpart != null && counterpart.isCleared) {
+      throw StateError(
+        'Counterpart transfer is cleared; unclear it before deleting',
+      );
+    }
+
     _db.execute('BEGIN IMMEDIATE');
     try {
+      if (counterpart != null) {
+        _db.execute('DELETE FROM transactions WHERE id = ?', [counterpart.id]);
+        _audit.append(
+          category: AuditCategory.transaction,
+          action: AuditAction.delete,
+          entityType: AuditEntityType.transaction,
+          entityId: counterpart.id,
+          summary: _summary(
+            'Deleted',
+            counterpart.payee,
+            counterpart.amountCents,
+          ),
+          detail: {
+            'account_id': counterpart.accountId,
+            'date': _dateOnly(counterpart.date),
+            'payee': counterpart.payee,
+            'amount_cents': counterpart.amountCents,
+            'source': counterpart.source,
+            'transfer_pair_id': existing.transferPairId,
+          },
+        );
+      }
+
       _db.execute('DELETE FROM transactions WHERE id = ?', [id]);
       _audit.append(
         category: AuditCategory.transaction,
@@ -492,6 +1024,8 @@ WHERE id = ?
           'payee': existing.payee,
           'amount_cents': existing.amountCents,
           'source': existing.source,
+          if (existing.transferPairId != null)
+            'transfer_pair_id': existing.transferPairId,
         },
       );
       _db.execute('COMMIT');

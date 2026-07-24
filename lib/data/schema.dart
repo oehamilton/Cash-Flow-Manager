@@ -1,5 +1,5 @@
 /// Current on-disk schema version for Cash Flow Manager databases.
-const int kSchemaVersion = 3;
+const int kSchemaVersion = 4;
 
 /// DDL applied when creating schema v1 (base tables).
 abstract final class SchemaV1 {
@@ -131,6 +131,38 @@ abstract final class SchemaV3 {
     '''
 ALTER TABLE accounts
 ADD COLUMN min_balance_cents INTEGER NOT NULL DEFAULT 0
+''',
+  ];
+}
+
+/// Schema v4: payee directory + optional payee_id / transfer_pair index (Phase 6).
+abstract final class SchemaV4 {
+  static const List<String> migrationStatements = [
+    '''
+CREATE TABLE payees (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL COLLATE NOCASE,
+  notes TEXT,
+  url TEXT,
+  phone TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+''',
+    '''
+CREATE UNIQUE INDEX idx_payees_name ON payees(name COLLATE NOCASE)
+''',
+    '''
+ALTER TABLE transactions
+ADD COLUMN payee_id TEXT REFERENCES payees(id)
+''',
+    '''
+CREATE INDEX idx_transactions_transfer_pair
+  ON transactions(transfer_pair_id)
+''',
+    '''
+CREATE INDEX idx_transactions_payee_id
+  ON transactions(payee_id)
 ''',
   ];
 }

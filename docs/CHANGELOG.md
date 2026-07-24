@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- Payees is a left-rail destination (not nested under Settings)
+- Register header includes an account dropdown to switch registers
+
+## [6.3.0] — 2026-07-24
+
+### Added
+
+- Phase 6.1 linked transfers: choose an account as payee to post paired register legs; edit syncs both; delete removes both; clear stays per-leg
+- Phase 6.2 payee directory in Settings (notes/contact, rename, merge) + autocomplete with accounts/managed/history
+- Phase 6.3 recurring transfers via `linked_account_id` + jump-to-other-account from transfer rows
+- Schema v4: `payees` table, `transactions.payee_id`, transfer_pair index
+
+## [5.3.0] — 2026-07-24
+
+### Added
+
+- Phase 5.3 Windows release packaging: `msix` config + `tool/build_release.ps1` (exe folder and optional MSIX) — parked pending resume of ship work
+
 ## [5.2.0] — 2026-07-24
 
 ### Added

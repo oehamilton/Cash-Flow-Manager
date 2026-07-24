@@ -431,11 +431,17 @@ Worth deciding now so they don’t surprise us mid-build:
 ### Phase 5 — Polish & ship
 - **5.1** Validation, empty states, confirmations, idle lock, **Activity log viewer** (read-only `audit_log` in Settings), **final visual polish**
 - **5.2** Backup/export encrypted DB (+ optional CSV register export)
-- **5.3** Windows release build (exe/MSIX; MSI if required) — prefer **x64** build on Intel/AMD host; optional native ARM64 build on ARM host (see [`DEPENDENCIES.md`](DEPENDENCIES.md))
-- **5.4** Full regression pass + manual Windows 11 checklist
+- **5.3** Windows release build (exe/MSIX; MSI if required) — prefer **x64** build on Intel/AMD host; optional native ARM64 build on ARM host (see [`DEPENDENCIES.md`](DEPENDENCIES.md)) — **parked** (resume after Phase 6)
+- **5.4** Full regression pass + manual Windows 11 checklist — **parked**
 - **Exit:** daily-driver installable build
 
-### Phase 6 — Android (later)
+### Phase 6 — Transfers & Payees
+- **6.1** Linked transfers: account-as-payee creates paired register legs (`transfer_pair_id`); edit syncs both; delete removes both; clear stays per-leg
+- **6.2** Payee directory (managed non-account payees: notes/contact) + autocomplete; **left-rail Payees** destination
+- **6.3** Recurring transfers (`linked_account_id` materializes pairs) + jump-to-other-leg; optional payee rename/merge; **register account switcher**
+- **Exit:** paying cards/loans and moving funds between accounts is one action; payees are manageable
+
+### Phase 7 — Android (later)
 - Android target, biometric unlock, sync-safety before relying on shared OneDrive file
 
 ## Out of scope for v1
@@ -443,8 +449,8 @@ Worth deciding now so they don’t surprise us mid-build:
 - Bank sync / Plaid / OFX
 - Multi-user backend
 - Perfect multi-device conflict resolution
-- Transfer pairing (schema stub only)
 - Forecasting customization per non-primary account (easy follow-on)
+- Category splits / receipt attachments / matching two existing singles into a transfer
 
 ## Success criteria
 

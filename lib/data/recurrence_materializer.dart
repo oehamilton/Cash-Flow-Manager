@@ -1,11 +1,13 @@
 import 'package:sqlite3/sqlite3.dart';
 import 'package:uuid/uuid.dart';
 
+import 'account_repository.dart';
 import 'database_session.dart';
 import 'recurrence_rule.dart';
 import 'recurrence_rule_repository.dart';
 import 'recurrence_schedule.dart';
 import 'transaction.dart';
+import 'transfer_amounts.dart';
 
 /// Result of a materialization pass.
 class MaterializeResult {
@@ -23,8 +25,8 @@ class MaterializeResult {
 /// Generates uncleared register rows for active recurrence rules (Phase 3.2).
 ///
 /// Instance keys are `{ruleId}:{YYYY-MM-DD}` so re-runs are idempotent.
-/// Existing rows (including user-edited generated instances) are never
-/// overwritten (Phase 3.4).
+/// When [RecurrenceRule.linkedAccountId] is set, also creates the counterpart
+/// transfer leg (Phase 6.3).
 class RecurrenceMaterializer {
   RecurrenceMaterializer(this._session, {Uuid? uuid})
       : _uuid = uuid ?? const Uuid();
@@ -69,9 +71,18 @@ class RecurrenceMaterializer {
       accountId,
       activeOnly: true,
     );
+    // Also materialize rules on other accounts that transfer *into* this one.
+    final inbound = RecurrenceRuleRepository(_session).listAllActive().where(
+          (r) => r.linkedAccountId == accountId && r.accountId != accountId,
+        );
+    final seen = <String>{};
     var inserted = 0;
     var skipped = 0;
-    for (final rule in rules) {
+    var processed = 0;
+    for (final rule in [...rules, ...inbound]) {
+      if (!seen.add(rule.id)) {
+        continue;
+      }
       final partial = materializeRule(
         rule,
         asOf: asOf,
@@ -79,11 +90,12 @@ class RecurrenceMaterializer {
       );
       inserted += partial.inserted;
       skipped += partial.skippedExisting;
+      processed++;
     }
     return MaterializeResult(
       inserted: inserted,
       skippedExisting: skipped,
-      rulesProcessed: rules.length,
+      rulesProcessed: processed,
     );
   }
 
@@ -111,6 +123,12 @@ class RecurrenceMaterializer {
       ruleEnd: rule.endDate,
     );
 
+    final accounts = AccountRepository(_session);
+    final sourceAccount = accounts.getById(rule.accountId);
+    final linked = rule.linkedAccountId == null
+        ? null
+        : accounts.getById(rule.linkedAccountId!);
+
     var inserted = 0;
     var skipped = 0;
     final now = DateTime.now().toUtc().toIso8601String();
@@ -132,20 +150,31 @@ LIMIT 1
           continue;
         }
 
+        final pairId =
+            linked != null && sourceAccount != null ? _uuid.v4() : null;
+        final sourcePayee = linked != null ? linked.name : rule.payee;
+        final destAmount = linked != null && sourceAccount != null
+            ? TransferAmounts.counterpartAmount(
+                sourceType: sourceAccount.type,
+                destType: linked.type,
+                sourceAmountCents: rule.amountCents,
+              )
+            : null;
+
         _db.execute(
           '''
 INSERT INTO transactions (
   id, account_id, date, payee, memo, amount_cents,
   is_cleared, cleared_at, source,
-  recurrence_rule_id, recurrence_instance_key,
+  recurrence_rule_id, recurrence_instance_key, transfer_pair_id,
   created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ''',
           [
             _uuid.v4(),
             rule.accountId,
             RecurrenceSchedule.formatDate(date),
-            rule.payee,
+            sourcePayee,
             rule.memo,
             rule.amountCents,
             rule.autoClear ? 1 : 0,
@@ -153,11 +182,56 @@ INSERT INTO transactions (
             TransactionSource.recurringGenerated,
             rule.id,
             key,
+            pairId,
             now,
             now,
           ],
         );
         inserted++;
+
+        if (linked != null &&
+            sourceAccount != null &&
+            pairId != null &&
+            destAmount != null) {
+          final destKey = counterpartInstanceKey(rule.id, date);
+          final destExisting = _db.select(
+            '''
+SELECT id FROM transactions
+WHERE account_id = ? AND recurrence_instance_key = ?
+LIMIT 1
+''',
+            [linked.id, destKey],
+          );
+          if (destExisting.isEmpty) {
+            _db.execute(
+              '''
+INSERT INTO transactions (
+  id, account_id, date, payee, memo, amount_cents,
+  is_cleared, cleared_at, source,
+  recurrence_rule_id, recurrence_instance_key, transfer_pair_id,
+  created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+''',
+              [
+                _uuid.v4(),
+                linked.id,
+                RecurrenceSchedule.formatDate(date),
+                sourceAccount.name,
+                rule.memo,
+                destAmount,
+                0,
+                null,
+                TransactionSource.recurringGenerated,
+                rule.id,
+                destKey,
+                pairId,
+                now,
+                now,
+              ],
+            );
+            inserted++;
+          }
+        }
       }
 
       // Point next_scheduled at the first occurrence after the horizon.
@@ -196,4 +270,7 @@ WHERE id = ?
 
   static String instanceKey(String ruleId, DateTime date) =>
       '$ruleId:${RecurrenceSchedule.formatDate(date)}';
+
+  static String counterpartInstanceKey(String ruleId, DateTime date) =>
+      '$ruleId:${RecurrenceSchedule.formatDate(date)}:xfer';
 }

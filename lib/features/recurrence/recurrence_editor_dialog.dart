@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../data/account.dart';
 import '../../data/money.dart';
 import '../../data/recurrence_frequency.dart';
 import '../../data/recurrence_materializer.dart';
@@ -11,6 +12,8 @@ import '../../theme/app_colors.dart';
 class RecurrenceEditorResult {
   const RecurrenceEditorResult({
     required this.payee,
+    this.linkedAccountId,
+    this.clearLinkedAccountId = false,
     this.memo,
     required this.amountCents,
     required this.frequency,
@@ -22,6 +25,8 @@ class RecurrenceEditorResult {
   });
 
   final String payee;
+  final String? linkedAccountId;
+  final bool clearLinkedAccountId;
   final String? memo;
   final int amountCents;
   final RecurrenceFrequency frequency;
@@ -33,17 +38,28 @@ class RecurrenceEditorResult {
 }
 
 class RecurrenceEditorDialog extends StatefulWidget {
-  const RecurrenceEditorDialog({super.key, this.initial});
+  const RecurrenceEditorDialog({
+    super.key,
+    this.initial,
+    this.transferAccounts = const [],
+  });
 
   final RecurrenceRule? initial;
+
+  /// Other accounts available as transfer targets (exclude current).
+  final List<Account> transferAccounts;
 
   static Future<RecurrenceEditorResult?> show(
     BuildContext context, {
     RecurrenceRule? initial,
+    List<Account> transferAccounts = const [],
   }) {
     return showDialog<RecurrenceEditorResult>(
       context: context,
-      builder: (context) => RecurrenceEditorDialog(initial: initial),
+      builder: (context) => RecurrenceEditorDialog(
+        initial: initial,
+        transferAccounts: transferAccounts,
+      ),
     );
   }
 
@@ -62,6 +78,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   DateTime? _endDate;
   late bool _autoClear;
   late bool _isActive;
+  String? _linkedAccountId;
   String? _error;
 
   static final _amountAllow = FilteringTextInputFormatter.allow(
@@ -90,6 +107,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
     _endDate = initial?.endDate;
     _autoClear = initial?.autoClear ?? false;
     _isActive = initial?.isActive ?? true;
+    _linkedAccountId = initial?.linkedAccountId;
   }
 
   @override
@@ -162,13 +180,24 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
       if (interval == null || interval < 1) {
         throw const FormatException('Interval must be a whole number ≥ 1');
       }
-      final payee = _payeeController.text.trim();
+      var payee = _payeeController.text.trim();
+      if (payee.isEmpty && _linkedAccountId != null) {
+        final match = widget.transferAccounts.where(
+          (a) => a.id == _linkedAccountId,
+        );
+        if (match.isNotEmpty) {
+          payee = match.first.name;
+        }
+      }
       if (payee.isEmpty) {
         throw const FormatException('Payee is required');
       }
+      final hadLink = widget.initial?.linkedAccountId != null;
       Navigator.of(context).pop(
         RecurrenceEditorResult(
           payee: payee,
+          linkedAccountId: _linkedAccountId,
+          clearLinkedAccountId: hadLink && _linkedAccountId == null,
           memo: _memoController.text,
           amountCents: amountCents,
           frequency: _frequency,
@@ -229,6 +258,47 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                 decoration: const InputDecoration(labelText: 'Payee'),
                 textInputAction: TextInputAction.next,
               ),
+              if (widget.transferAccounts.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String?>(
+                  key: const Key('recurrence_transfer_account'),
+                  // ignore: deprecated_member_use
+                  value: widget.transferAccounts.any(
+                    (a) => a.id == _linkedAccountId,
+                  )
+                      ? _linkedAccountId
+                      : null,
+                  decoration: const InputDecoration(
+                    labelText: 'Transfer to account',
+                    helperText:
+                        'Optional — creates a matching entry on the other register',
+                    helperMaxLines: 2,
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('None (normal recurring)'),
+                    ),
+                    for (final account in widget.transferAccounts)
+                      DropdownMenuItem(
+                        value: account.id,
+                        child: Text('${account.name} (${account.type.label})'),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _linkedAccountId = value;
+                      if (value != null &&
+                          _payeeController.text.trim().isEmpty) {
+                        final match = widget.transferAccounts.firstWhere(
+                          (a) => a.id == value,
+                        );
+                        _payeeController.text = match.name;
+                      }
+                    });
+                  },
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 key: const Key('recurrence_memo_field'),

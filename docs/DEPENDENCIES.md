@@ -141,6 +141,15 @@ flutter build windows --release   # closer to ship
 Artifacts land under `build\windows\<arch>\runner\...`  
 (`arm64` on ARM hosts, `x64` on Intel/AMD hosts).
 
+### Release + MSIX (Phase 5.3)
+
+```powershell
+.\tool\build_release.ps1          # analyze, test, release build
+.\tool\build_release.ps1 -Msix    # same + MSIX under build\windows\msix\
+```
+
+Uses the `msix` pub.dev package (`msix_config` in `pubspec.yaml`). The release script passes `--install-certificate false` so packaging stays non-interactive; sideload still needs a trusted cert on the target PC if Windows requires it. On ARM64 hosts the script sets `--architecture arm64` to match `build\windows\arm64\...`.
+
 ## CI / second machine tips
 
 - Record **host arch** in any release notes (`x64` vs `arm64`).

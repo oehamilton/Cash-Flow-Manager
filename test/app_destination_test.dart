@@ -7,6 +7,7 @@ void main() {
       'Register',
       'Accounts',
       'Debts',
+      'Payees',
       'Settings',
     ]);
   });

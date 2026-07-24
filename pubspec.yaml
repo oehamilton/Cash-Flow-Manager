@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 5.2.0+1
+version: 6.3.0+1
 
 environment:
   sdk: ^3.12.2
@@ -53,6 +53,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   mocktail: ^1.0.5
+  msix: ^3.18.0
 
 # Bundle SQLite3MultipleCiphers for at-rest encryption (Windows-friendly).
 # See https://pub.dev/packages/sqlite3 — encryption / hook options.
@@ -81,3 +82,20 @@ flutter:
       fonts:
         - asset: assets/fonts/IBMPlexMono-Regular.ttf
           weight: 400
+
+# Windows MSIX installer (Phase 5.3). Generate with: dart run msix:create
+# Or: .\tool\build_release.ps1 -Msix
+msix_config:
+  display_name: Cash Flow Manager
+  publisher_display_name: oehamilton
+  identity_name: oehamilton.CashFlowManager
+  msix_version: 6.3.0.0
+  # Override per host via: dart run msix:create --architecture arm64
+  architecture: x64
+  logo_path: windows/runner/resources/app_icon.ico
+  languages: en-us
+  capabilities: internetClient
+  output_path: build/windows/msix
+  output_name: CashFlowManager
+  # Avoid interactive cert prompt in CI/scripts; sideload still uses test cert signing.
+  install_certificate: false

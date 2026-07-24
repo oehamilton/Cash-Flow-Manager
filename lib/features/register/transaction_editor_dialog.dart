@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/money.dart';
+import '../../data/payee_suggestion.dart';
 import '../../data/transaction.dart';
 import '../../theme/app_colors.dart';
 
@@ -10,6 +11,9 @@ class TransactionEditorResult {
   const TransactionEditorResult({
     required this.date,
     this.payee,
+    this.payeeId,
+    this.transferToAccountId,
+    this.clearTransfer = false,
     this.memo,
     required this.amountCents,
     this.interestCents,
@@ -20,6 +24,9 @@ class TransactionEditorResult {
 
   final DateTime date;
   final String? payee;
+  final String? payeeId;
+  final String? transferToAccountId;
+  final bool clearTransfer;
   final String? memo;
   final int amountCents;
   final int? interestCents;
@@ -31,22 +38,26 @@ class TransactionEditorResult {
 /// Modal form to create or edit a register transaction.
 ///
 /// Amounts use separate Payment (debit) and Deposit (credit) fields.
+/// Selecting an account payee (→ Name) creates a linked transfer (Phase 6.1).
 class TransactionEditorDialog extends StatefulWidget {
   const TransactionEditorDialog({
     super.key,
     required this.suggestions,
     this.initial,
+    this.initialTransferAccountId,
     this.showInterestPrincipal = false,
   });
 
-  final List<String> suggestions;
+  final List<PayeeSuggestion> suggestions;
   final Transaction? initial;
+  final String? initialTransferAccountId;
   final bool showInterestPrincipal;
 
   static Future<TransactionEditorResult?> show(
     BuildContext context, {
-    required List<String> suggestions,
+    required List<PayeeSuggestion> suggestions,
     Transaction? initial,
+    String? initialTransferAccountId,
     bool showInterestPrincipal = false,
   }) {
     return showDialog<TransactionEditorResult>(
@@ -54,6 +65,7 @@ class TransactionEditorDialog extends StatefulWidget {
       builder: (context) => TransactionEditorDialog(
         suggestions: suggestions,
         initial: initial,
+        initialTransferAccountId: initialTransferAccountId,
         showInterestPrincipal: showInterestPrincipal,
       ),
     );
@@ -72,6 +84,8 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
   late final TextEditingController _principalController;
   late DateTime _date;
   String _payeeText = '';
+  String? _transferAccountId;
+  String? _managedPayeeId;
   String? _error;
 
   static final _amountAllow = FilteringTextInputFormatter.allow(
@@ -83,6 +97,16 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
     super.initState();
     final initial = widget.initial;
     _payeeText = initial?.payee ?? '';
+    _transferAccountId = widget.initialTransferAccountId;
+    _managedPayeeId = initial?.payeeId;
+    if (_transferAccountId != null) {
+      final match = widget.suggestions.whereType<AccountPayeeSuggestion>().where(
+            (s) => s.accountId == _transferAccountId,
+          );
+      if (match.isNotEmpty) {
+        _payeeText = match.first.label;
+      }
+    }
     _memoController = TextEditingController(text: initial?.memo ?? '');
     final amount = initial?.amountCents ?? 0;
     _paymentController = TextEditingController(
@@ -125,6 +149,42 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
     return parseDollarsToCents(trimmed);
   }
 
+  void _onPayeeTextChanged(String value) {
+    _payeeText = value;
+    // Typing freely clears structured selection unless it still matches.
+    final stillAccount = widget.suggestions
+        .whereType<AccountPayeeSuggestion>()
+        .any((s) => s.label == value || s.account.name == value);
+    if (!stillAccount) {
+      _transferAccountId = null;
+    }
+    final stillManaged = widget.suggestions
+        .whereType<ManagedPayeeSuggestion>()
+        .any((s) => s.label == value);
+    if (!stillManaged) {
+      _managedPayeeId = null;
+    }
+  }
+
+  void _onPayeeSelected(PayeeSuggestion suggestion) {
+    setState(() {
+      _payeeText = suggestion.label;
+      switch (suggestion) {
+        case AccountPayeeSuggestion(:final accountId):
+          _transferAccountId = accountId;
+          _managedPayeeId = null;
+        case ManagedPayeeSuggestion(:final payeeId):
+          _managedPayeeId = payeeId;
+          _transferAccountId = null;
+          _payeeText = suggestion.label;
+        case TextPayeeSuggestion(:final name):
+          _payeeText = name;
+          _transferAccountId = null;
+          _managedPayeeId = null;
+      }
+    });
+  }
+
   void _submit() {
     setState(() => _error = null);
     try {
@@ -148,7 +208,7 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
       int? principalCents;
       var clearInterest = false;
       var clearPrincipal = false;
-      if (widget.showInterestPrincipal) {
+      if (widget.showInterestPrincipal && _transferAccountId == null) {
         interestCents = _optionalCents(_interestController.text);
         principalCents = _optionalCents(_principalController.text);
         clearInterest = interestCents == null;
@@ -160,10 +220,30 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
         );
       }
 
+      final wasTransfer = widget.initialTransferAccountId != null;
+      final clearTransfer =
+          wasTransfer && _transferAccountId == null;
+
+      // Prefer account display name over "→ Name" for stored free-text fallback.
+      var payeeOut = _payeeText.trim();
+      if (_transferAccountId != null) {
+        final match = widget.suggestions
+            .whereType<AccountPayeeSuggestion>()
+            .where((s) => s.accountId == _transferAccountId);
+        if (match.isNotEmpty) {
+          payeeOut = match.first.account.name;
+        }
+      } else if (payeeOut.startsWith('→ ')) {
+        payeeOut = payeeOut.substring(2).trim();
+      }
+
       Navigator.of(context).pop(
         TransactionEditorResult(
           date: _date,
-          payee: _payeeText,
+          payee: payeeOut.isEmpty ? null : payeeOut,
+          payeeId: _managedPayeeId,
+          transferToAccountId: _transferAccountId,
+          clearTransfer: clearTransfer,
           memo: _memoController.text,
           amountCents: amountCents,
           interestCents: interestCents,
@@ -208,6 +288,7 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.initial != null;
+    final isTransfer = _transferAccountId != null;
     return CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () {
@@ -257,21 +338,36 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
                           ),
                     ),
                   ),
+                if (isTransfer)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 4),
+                    child: Text(
+                      key: const Key('tx_transfer_hint'),
+                      'Transfer — a matching entry will be created on the other account.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: AppColors.primaryBright,
+                          ),
+                    ),
+                  ),
                 const SizedBox(height: 8),
-                Autocomplete<String>(
+                Autocomplete<PayeeSuggestion>(
                   optionsBuilder: (textEditingValue) {
                     final q = textEditingValue.text.trim().toLowerCase();
                     if (q.isEmpty) {
                       return widget.suggestions.take(12);
                     }
                     return widget.suggestions
-                        .where((s) => s.toLowerCase().contains(q))
+                        .where(
+                          (s) =>
+                              s.label.toLowerCase().contains(q) ||
+                              (s is AccountPayeeSuggestion &&
+                                  s.account.name.toLowerCase().contains(q)),
+                        )
                         .take(12);
                   },
+                  displayStringForOption: (s) => s.label,
                   initialValue: TextEditingValue(text: _payeeText),
-                  onSelected: (value) {
-                    setState(() => _payeeText = value);
-                  },
+                  onSelected: _onPayeeSelected,
                   fieldViewBuilder: (
                     context,
                     textEditingController,
@@ -285,11 +381,44 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
                       autofocus: true,
                       decoration: const InputDecoration(
                         labelText: 'Payee',
-                        hintText: 'Start typing for suggestions',
+                        hintText: 'Account, payee, or type freely',
                       ),
                       textInputAction: TextInputAction.next,
-                      onChanged: (value) => _payeeText = value,
+                      onChanged: _onPayeeTextChanged,
                       onSubmitted: (_) => onFieldSubmitted(),
+                    );
+                  },
+                  optionsViewBuilder: (context, onSelected, options) {
+                    return Align(
+                      alignment: Alignment.topLeft,
+                      child: Material(
+                        elevation: 4,
+                        color: AppColors.surface,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxHeight: 240),
+                          child: ListView.builder(
+                            padding: EdgeInsets.zero,
+                            shrinkWrap: true,
+                            itemCount: options.length,
+                            itemBuilder: (context, index) {
+                              final option = options.elementAt(index);
+                              final icon = switch (option) {
+                                AccountPayeeSuggestion() =>
+                                  Icons.swap_horiz,
+                                ManagedPayeeSuggestion() =>
+                                  Icons.person_outline,
+                                TextPayeeSuggestion() => Icons.history,
+                              };
+                              return ListTile(
+                                dense: true,
+                                leading: Icon(icon, size: 18),
+                                title: Text(option.label),
+                                onTap: () => onSelected(option),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -348,7 +477,7 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
                     ),
                   ],
                 ),
-                if (widget.showInterestPrincipal) ...[
+                if (widget.showInterestPrincipal && !isTransfer) ...[
                   const SizedBox(height: 12),
                   Text(
                     'Optional split (for charts)',

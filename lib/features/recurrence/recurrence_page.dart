@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../auth/auth_service.dart';
+import '../../data/account.dart';
 import '../../data/account_repository.dart';
 import '../../data/money.dart';
 import '../../data/recurrence_rule.dart';
@@ -78,12 +79,26 @@ class _RecurrencePageState extends State<RecurrencePage> {
     });
   }
 
+  List<Account> _transferAccounts() {
+    final session = widget.auth.session;
+    if (session == null) {
+      return const [];
+    }
+    return AccountRepository(session)
+        .listAccounts()
+        .where((a) => a.id != widget.accountId)
+        .toList();
+  }
+
   Future<void> _add() async {
     final repo = _repo;
     if (repo == null) {
       return;
     }
-    final result = await RecurrenceEditorDialog.show(context);
+    final result = await RecurrenceEditorDialog.show(
+      context,
+      transferAccounts: _transferAccounts(),
+    );
     if (result == null || !mounted) {
       return;
     }
@@ -91,6 +106,7 @@ class _RecurrencePageState extends State<RecurrencePage> {
       final id = repo.create(
         RecurrenceRuleDraft(
           accountId: widget.accountId,
+          linkedAccountId: result.linkedAccountId,
           payee: result.payee,
           memo: result.memo,
           amountCents: result.amountCents,
@@ -134,7 +150,11 @@ class _RecurrencePageState extends State<RecurrencePage> {
     if (repo == null) {
       return;
     }
-    final result = await RecurrenceEditorDialog.show(context, initial: rule);
+    final result = await RecurrenceEditorDialog.show(
+      context,
+      initial: rule,
+      transferAccounts: _transferAccounts(),
+    );
     if (result == null || !mounted) {
       return;
     }
@@ -142,6 +162,8 @@ class _RecurrencePageState extends State<RecurrencePage> {
       repo.update(
         rule.id,
         RecurrenceRuleUpdate(
+          linkedAccountId: result.linkedAccountId,
+          clearLinkedAccountId: result.clearLinkedAccountId,
           payee: result.payee,
           memo: result.memo,
           clearMemo: result.memo == null || result.memo!.trim().isEmpty,

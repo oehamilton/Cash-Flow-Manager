@@ -32,4 +32,5 @@ abstract final class AuditEntityType {
   static const account = 'account';
   static const transaction = 'transaction';
   static const recurrenceRule = 'recurrence_rule';
+  static const payee = 'payee';
 }

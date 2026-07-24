@@ -17,6 +17,7 @@ class Transaction {
     this.recurrenceInstanceKey,
     required this.isUserOverridden,
     this.transferPairId,
+    this.payeeId,
     this.interestCents,
     this.principalCents,
     required this.createdAt,
@@ -37,6 +38,7 @@ class Transaction {
   final String? recurrenceInstanceKey;
   final bool isUserOverridden;
   final String? transferPairId;
+  final String? payeeId;
   final int? interestCents;
   final int? principalCents;
   final DateTime createdAt;
@@ -46,6 +48,8 @@ class Transaction {
 
   bool get isRecurringGenerated =>
       source == TransactionSource.recurringGenerated;
+
+  bool get isTransfer => transferPairId != null;
 
   factory Transaction.fromRow(Map<String, Object?> row) {
     return Transaction(
@@ -63,6 +67,7 @@ class Transaction {
       recurrenceInstanceKey: row['recurrence_instance_key'] as String?,
       isUserOverridden: (row['is_user_overridden'] as int) == 1,
       transferPairId: row['transfer_pair_id'] as String?,
+      payeeId: row['payee_id'] as String?,
       interestCents: row['interest_cents'] as int?,
       principalCents: row['principal_cents'] as int?,
       createdAt: DateTime.parse(row['created_at'] as String),
@@ -158,12 +163,14 @@ class RegisterMetrics {
   final int? trough8WeeksCents;
 }
 
-/// Fields required to create a user-entered transaction (Phase 2.1).
+/// Fields required to create a user-entered transaction (Phase 2.1 / 6.1).
 class TransactionDraft {
   const TransactionDraft({
     required this.accountId,
     required this.date,
     this.payee,
+    this.payeeId,
+    this.transferToAccountId,
     this.memo,
     required this.amountCents,
     this.interestCents,
@@ -173,6 +180,10 @@ class TransactionDraft {
   final String accountId;
   final DateTime date;
   final String? payee;
+  final String? payeeId;
+
+  /// When set, creates a linked transfer leg on this account.
+  final String? transferToAccountId;
   final String? memo;
   final int amountCents;
   final int? interestCents;
@@ -185,6 +196,10 @@ class TransactionUpdate {
     this.date,
     this.payee,
     this.clearPayee = false,
+    this.payeeId,
+    this.clearPayeeId = false,
+    this.transferToAccountId,
+    this.clearTransfer = false,
     this.memo,
     this.clearMemo = false,
     this.amountCents,
@@ -197,6 +212,12 @@ class TransactionUpdate {
   final DateTime? date;
   final String? payee;
   final bool clearPayee;
+  final String? payeeId;
+  final bool clearPayeeId;
+
+  /// Set to link/retarget a transfer; use [clearTransfer] to drop the pair.
+  final String? transferToAccountId;
+  final bool clearTransfer;
   final String? memo;
   final bool clearMemo;
   final int? amountCents;

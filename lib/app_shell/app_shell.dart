@@ -7,6 +7,7 @@ import '../data/account_repository.dart';
 import '../data/app_settings_repository.dart';
 import '../features/accounts/accounts_page.dart';
 import '../features/accounts/debts_page.dart';
+import '../features/payees/payees_page.dart';
 import '../features/register/register_page.dart';
 import '../features/settings/idle_lock_controller.dart';
 import '../features/settings/settings_page.dart';
@@ -213,6 +214,7 @@ class _AppShellState extends State<AppShell> {
           key: Key('register_${_registerAccountId ?? 'none'}'),
           auth: widget.auth,
           accountId: _registerAccountId,
+          onOpenRegister: _openRegister,
         ),
       AppDestination.accounts => AccountsPage(
           key: const Key('page_accounts'),
@@ -223,6 +225,10 @@ class _AppShellState extends State<AppShell> {
           key: const Key('page_debts'),
           auth: widget.auth,
           onOpenRegister: _openRegister,
+        ),
+      AppDestination.payees => PayeesPage(
+          key: const Key('page_payees'),
+          auth: widget.auth,
         ),
       AppDestination.settings => SettingsPage(
           key: const Key('page_settings'),

@@ -86,7 +86,7 @@ void main() {
       );
     });
 
-    test('migrates v2 database to v3 with min_balance_cents', () {
+    test('migrates v2 database to current with min_balance and payees', () {
       final raw = sqlite3.open(dbPath);
       try {
         raw.execute("PRAGMA key = 'migrate-v2-key'");
@@ -107,13 +107,21 @@ void main() {
 
       expect(
         migrated.select('SELECT version FROM schema_version').first['version'],
-        3,
+        kSchemaVersion,
       );
       expect(File('$dbPath.pre-v2.bak').existsSync(), isTrue);
       final cols = migrated.select('PRAGMA table_info(accounts)');
       expect(
         cols.map((r) => r['name'] as String),
         contains('min_balance_cents'),
+      );
+      expect(
+        migrated
+            .select(
+              "SELECT name FROM sqlite_master WHERE type='table' AND name='payees'",
+            )
+            .isNotEmpty,
+        isTrue,
       );
     });
   });

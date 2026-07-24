@@ -2,7 +2,7 @@
 
 Local-first bank register and short-horizon cash flow forecaster for Windows 11 (Android later). Built with Flutter; data stored in a user-selectable encrypted SQLite database.
 
-**Current version:** 5.2.0 (Phase 5.2 backup / export)
+**Current version:** 6.3.0 (Phase 6 Transfers & Payees)
 
 Data files use SQLite3MultipleCiphers encryption (`hooks.sqlite3.source: sqlite3mc`). Never commit `*.cfm.db` or `*.cfm.lock` files.
 
@@ -50,6 +50,28 @@ Same checks locally (Windows):
 ```
 
 CI runs `flutter analyze` + `flutter test` on every push/PR (`.github/workflows/ci.yml`). Shared fixtures live under `test/support/`.
+
+## Release build (Windows)
+
+Prefer an **x64** (Intel/AMD) host for the default ship build; ARM64 hosts produce native ARM64 binaries (see [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md)).
+
+```powershell
+# Release folder under build\windows\<arch>\runner\Release
+.\tool\build_release.ps1
+
+# Also produce an MSIX installer under build\windows\msix\
+.\tool\build_release.ps1 -Msix
+```
+
+Or manually:
+
+```powershell
+flutter build windows --release
+# Use arm64 on ARM hosts; x64 is the default ship target
+dart run msix:create --build-windows false --architecture x64 --install-certificate false
+```
+
+Sideload the `.msix` (Developer Mode / trusted certificate as required by Windows). Store publishing needs Partner Center identity — not configured here.
 
 ## Development process
 
