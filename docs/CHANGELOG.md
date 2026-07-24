@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-07-23
+
+### Added
+
+- Phase 1.1 account CRUD (all types), primary rules, archive/delete, audit writes
+
 ## [0.7.0] — 2026-07-23
 
 ### Added

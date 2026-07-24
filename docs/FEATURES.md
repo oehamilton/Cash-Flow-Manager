@@ -15,7 +15,7 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-0.5b | Open / switch to a different vault database (Settings or open dialog) | 0.5b / 5.x | `planned` | |
 | F-0.6 | Test harness baseline / sample coverage expansion | 0.6 | `done` | `test/harness_smoke_test.dart`, `test/support/*`, `.github/workflows/ci.yml` |
 | F-0.7 | Audit log table + access-event logging (schema v2) | 0.7 | `done` | `test/audit_log_test.dart` |
-| F-1.1 | Account CRUD + primary flag rules (+ audit writes) | 1.1 | `in_progress` | |
+| F-1.1 | Account CRUD + primary flag rules (+ audit writes) | 1.1 | `done` | `test/account_repository_test.dart` |
 | F-1.2 | Accounts list + debt list | 1.2 | `planned` | |
 | F-1.3 | Account info screen | 1.3 | `planned` | |
 | F-1.4 | Open register for selected account; cold start → primary | 1.4 | `planned` | |
