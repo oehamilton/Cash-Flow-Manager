@@ -1,6 +1,7 @@
 import 'package:sqlite3/sqlite3.dart';
 import 'package:uuid/uuid.dart';
 
+import 'account_history.dart';
 import 'audit_categories.dart';
 import 'audit_log_repository.dart';
 import 'database_session.dart';
@@ -72,6 +73,51 @@ WHERE account_id = ? AND date <= ?
       [accountId, date],
     ).first;
     return row['balance'] as int;
+  }
+
+  /// Trailing 12 month-end balances and tagged interest paid (Phase 4.2).
+  List<AccountMonthPoint> trailingTwelveMonths(
+    String accountId, {
+    DateTime? asOf,
+  }) {
+    final end = asOf ?? DateTime.now();
+    return [
+      for (final monthStart in AccountHistory.trailingMonthStarts(end))
+        AccountMonthPoint(
+          monthStart: monthStart,
+          balanceCents: balanceOnOrBefore(
+            accountId,
+            AccountHistory.monthEndCap(monthStart, end),
+          ),
+          interestPaidCents: interestPaidInMonth(
+            accountId,
+            monthStart,
+            through: AccountHistory.monthEndCap(monthStart, end),
+          ),
+        ),
+    ];
+  }
+
+  /// Sum of non-null interest tags for txs in [monthStart] through [through].
+  int interestPaidInMonth(
+    String accountId,
+    DateTime monthStart, {
+    required DateTime through,
+  }) {
+    final from = _dateOnly(monthStart);
+    final to = _dateOnly(through);
+    final row = _db.select(
+      '''
+SELECT COALESCE(SUM(interest_cents), 0) AS total
+FROM transactions
+WHERE account_id = ?
+  AND interest_cents IS NOT NULL
+  AND date >= ?
+  AND date <= ?
+''',
+      [accountId, from, to],
+    ).first;
+    return row['total'] as int;
   }
 
   /// Sticky header metrics including 4/8-week forecast troughs (Phase 3.5).

@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [4.2.0] — 2026-07-24
+
+### Added
+
+- Phase 4.2 12-month account history chart (balance + interest paid)
+
 ## [4.1.0] — 2026-07-24
 
 ### Added

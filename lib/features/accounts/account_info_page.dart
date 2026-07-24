@@ -3,11 +3,14 @@ import 'package:flutter/services.dart';
 
 import '../../auth/auth_service.dart';
 import '../../data/account.dart';
+import '../../data/account_history.dart';
 import '../../data/account_repository.dart';
 import '../../data/account_type.dart';
 import '../../data/money.dart';
+import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import 'account_history_chart.dart';
 
 /// Editable account metadata and credentials (Phase 1.3).
 class AccountInfoPage extends StatefulWidget {
@@ -52,6 +55,7 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
   bool _busy = false;
   String? _error;
   String? _status;
+  List<AccountMonthPoint> _history = const [];
 
   @override
   void initState() {
@@ -119,6 +123,10 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
     _type = account.type;
     _includeInDebtList = account.includeInDebtList;
     _dueDay = account.paymentDueDay;
+    final session = widget.auth.session;
+    _history = session == null
+        ? const []
+        : TransactionRepository(session).trailingTwelveMonths(account.id);
     _error = null;
     if (!initial) {
       setState(() {});
@@ -329,6 +337,10 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
                   Expanded(
                     child: ListView(
                       children: [
+                        if (_history.isNotEmpty) ...[
+                          AccountHistoryChart(points: _history),
+                          const SizedBox(height: 20),
+                        ],
                         _sectionTitle(textTheme, 'Basics'),
                         TextField(
                           key: const Key('account_info_name'),
