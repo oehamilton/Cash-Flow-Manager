@@ -5,7 +5,7 @@ import '../../data/transaction.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 
-/// Sticky metric chips: reconciled, today, and forecast trough placeholders.
+/// Sticky metric chips: reconciled, today, and 4/8-week forecast lows.
 class RegisterMetricsBar extends StatelessWidget {
   const RegisterMetricsBar({
     super.key,
@@ -42,13 +42,11 @@ class RegisterMetricsBar extends StatelessWidget {
                 label: '4-wk low',
                 valueKey: const Key('register_metric_trough_4w'),
                 cents: metrics.trough4WeeksCents,
-                placeholder: true,
               ),
               _MetricChip(
                 label: '8-wk low',
                 valueKey: const Key('register_metric_trough_8w'),
                 cents: metrics.trough8WeeksCents,
-                placeholder: true,
               ),
             ];
             if (wide) {
@@ -81,13 +79,11 @@ class _MetricChip extends StatelessWidget {
     required this.label,
     required this.valueKey,
     required this.cents,
-    this.placeholder = false,
   });
 
   final String label;
   final Key valueKey;
   final int? cents;
-  final bool placeholder;
 
   @override
   Widget build(BuildContext context) {
@@ -123,16 +119,6 @@ class _MetricChip extends StatelessWidget {
                 color: valueColor,
               ),
             ),
-            if (placeholder) ...[
-              const SizedBox(height: 2),
-              Text(
-                'Forecast soon',
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                  fontSize: 11,
-                ),
-              ),
-            ],
           ],
         ),
       ),

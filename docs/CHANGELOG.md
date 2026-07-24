@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [3.5.0] — 2026-07-24
+
+### Added
+
+- Phase 3.5 header 4-week and 8-week forecast trough lows
+
 ## [3.4.0] — 2026-07-24
 
 ### Added

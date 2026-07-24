@@ -141,9 +141,9 @@ List<RegisterEntry> withRunningBalances(Iterable<Transaction> transactions) {
   return entries;
 }
 
-/// Sticky register header metrics (Phase 2.4).
+/// Sticky register header metrics (Phase 2.4 / 3.5).
 ///
-/// [trough4WeeksCents] / [trough8WeeksCents] stay null until forecast (Phase 3+).
+/// Troughs are the lowest projected running balance in the next 4 / 8 weeks.
 class RegisterMetrics {
   const RegisterMetrics({
     required this.reconciledCents,

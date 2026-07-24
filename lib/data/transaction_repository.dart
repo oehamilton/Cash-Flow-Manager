@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import 'audit_categories.dart';
 import 'audit_log_repository.dart';
 import 'database_session.dart';
+import 'forecast_trough.dart';
 import 'transaction.dart';
 
 /// Transaction CRUD scoped by account, with payee history and audit (Phase 2.1).
@@ -73,12 +74,26 @@ WHERE account_id = ? AND date <= ?
     return row['balance'] as int;
   }
 
-  /// Sticky header metrics; troughs are placeholders until forecast lands.
+  /// Sticky header metrics including 4/8-week forecast troughs (Phase 3.5).
   RegisterMetrics metricsFor(String accountId, {DateTime? asOf}) {
     final today = asOf ?? DateTime.now();
+    final todayCents = balanceOnOrBefore(accountId, today);
+    final entries = listRegisterEntries(accountId);
     return RegisterMetrics(
       reconciledCents: clearedBalanceCents(accountId),
-      todayCents: balanceOnOrBefore(accountId, today),
+      todayCents: todayCents,
+      trough4WeeksCents: ForecastTrough.lowestInHorizon(
+        balanceThroughToday: todayCents,
+        entries: entries,
+        asOf: today,
+        horizonDays: ForecastTrough.weeks4Days,
+      ),
+      trough8WeeksCents: ForecastTrough.lowestInHorizon(
+        balanceThroughToday: todayCents,
+        entries: entries,
+        asOf: today,
+        horizonDays: ForecastTrough.weeks8Days,
+      ),
     );
   }
 
