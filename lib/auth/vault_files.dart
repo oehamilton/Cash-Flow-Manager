@@ -34,7 +34,7 @@ class VaultFiles {
     return await presence(databasePath) == VaultPresence.complete;
   }
 
-  /// Deletes the database, metadata, and lock file if present.
+  /// Deletes the database, metadata, lock, and pending-audit sidecar if present.
   ///
   /// Does not remove migration backups (`*.pre-vN.bak`).
   static Future<void> deleteVault(String databasePath) async {
@@ -43,6 +43,7 @@ class VaultFiles {
       normalized,
       VaultMeta.pathForDatabase(normalized),
       '$normalized.cfm.lock',
+      '$normalized.pending-audit.jsonl',
     ]) {
       final file = File(path);
       if (await file.exists()) {

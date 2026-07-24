@@ -22,7 +22,7 @@ void main() {
     }
   });
 
-  test('creates encrypted schema v1 and reopens with same key', () {
+  test('creates encrypted schema v2 and reopens with same key', () {
     final created = DatabaseOpener.open(
       databasePath: dbPath,
       passphrase: 'correct-horse-battery',
@@ -36,7 +36,10 @@ void main() {
         )
         .map((r) => r['name'] as String)
         .toList();
-    expect(tables, containsAll(['accounts', 'transactions', 'schema_version']));
+    expect(
+      tables,
+      containsAll(['accounts', 'audit_log', 'transactions', 'schema_version']),
+    );
     created.close();
 
     final reopened = DatabaseOpener.open(

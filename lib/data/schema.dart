@@ -1,7 +1,7 @@
 /// Current on-disk schema version for Cash Flow Manager databases.
-const int kSchemaVersion = 1;
+const int kSchemaVersion = 2;
 
-/// DDL applied when creating or migrating to [kSchemaVersion].
+/// DDL applied when creating schema v1 (base tables).
 abstract final class SchemaV1 {
   static const List<String> createStatements = [
     '''
@@ -95,6 +95,32 @@ CREATE INDEX idx_transactions_account_cleared
     '''
 CREATE INDEX idx_transactions_recurrence
   ON transactions(recurrence_rule_id)
+''',
+  ];
+}
+
+/// Schema v2: append-only activity / audit trail.
+abstract final class SchemaV2 {
+  static const List<String> migrationStatements = [
+    '''
+CREATE TABLE audit_log (
+  id TEXT PRIMARY KEY NOT NULL,
+  at TEXT NOT NULL,
+  category TEXT NOT NULL,
+  action TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id TEXT,
+  summary TEXT NOT NULL,
+  detail_json TEXT,
+  machine_name TEXT,
+  app_version TEXT
+)
+''',
+    '''
+CREATE INDEX idx_audit_log_at ON audit_log(at)
+''',
+    '''
+CREATE INDEX idx_audit_log_category_at ON audit_log(category, at)
 ''',
   ];
 }
