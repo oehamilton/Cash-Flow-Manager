@@ -6,6 +6,7 @@ import '../../data/account_repository.dart';
 import '../../data/money.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import 'account_info_page.dart';
 
 /// Debt-focused list: balance, APR, and payment (Phase 1.2).
 class DebtsPage extends StatefulWidget {
@@ -21,6 +22,7 @@ class _DebtsPageState extends State<DebtsPage> {
   List<AccountSummary> _rows = const [];
   String? _error;
   bool _loading = true;
+  String? _selectedAccountId;
 
   @override
   void initState() {
@@ -32,6 +34,7 @@ class _DebtsPageState extends State<DebtsPage> {
   void didUpdateWidget(covariant DebtsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.auth?.session != widget.auth?.session) {
+      _selectedAccountId = null;
       _reload();
     }
   }
@@ -64,6 +67,16 @@ class _DebtsPageState extends State<DebtsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = widget.auth;
+    if (_selectedAccountId != null && auth?.session != null) {
+      return AccountInfoPage(
+        auth: auth!,
+        accountId: _selectedAccountId!,
+        onClose: () => setState(() => _selectedAccountId = null),
+        onChanged: _reload,
+      );
+    }
+
     final textTheme = Theme.of(context).textTheme;
 
     return DecoratedBox(
@@ -90,8 +103,7 @@ class _DebtsPageState extends State<DebtsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Accounts marked for the debt list, sorted by balance owed. '
-              'Use Accounts → Add account to include loans and cards.',
+              'Tap a debt for details. Sorted by balance owed.',
               style: textTheme.bodyLarge,
             ),
             const SizedBox(height: 20),
@@ -134,7 +146,13 @@ class _DebtsPageState extends State<DebtsPage> {
                           color: AppColors.outline,
                         ),
                         itemBuilder: (context, index) {
-                          return _DebtRow(summary: _rows[index]);
+                          final row = _rows[index];
+                          return _DebtRow(
+                            summary: row,
+                            onTap: () => setState(
+                              () => _selectedAccountId = row.account.id,
+                            ),
+                          );
                         },
                       ),
                     ),
@@ -178,9 +196,10 @@ class _DebtsPageState extends State<DebtsPage> {
 }
 
 class _DebtRow extends StatelessWidget {
-  const _DebtRow({required this.summary});
+  const _DebtRow({required this.summary, required this.onTap});
 
   final AccountSummary summary;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -190,59 +209,63 @@ class _DebtRow extends StatelessWidget {
     final minPayment = account.minimumPaymentCents;
     final due = account.paymentDueDay;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Text(
-              account.name,
-              key: Key('debt_row_${account.id}'),
-              style: textTheme.titleMedium,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              formatCents(summary.balanceCents),
-              textAlign: TextAlign.end,
-              style: textTheme.titleMedium?.copyWith(
-                fontFamily: AppTheme.monoFont,
-                color: AppColors.danger,
+    return InkWell(
+      key: Key('debt_row_tap_${account.id}'),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Text(
+                account.name,
+                key: Key('debt_row_${account.id}'),
+                style: textTheme.titleMedium,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              apr == null ? '—' : '${apr.toStringAsFixed(2)}%',
-              textAlign: TextAlign.end,
-              style: textTheme.bodyMedium?.copyWith(
-                fontFamily: AppTheme.monoFont,
+            Expanded(
+              flex: 2,
+              child: Text(
+                formatCents(summary.balanceCents),
+                textAlign: TextAlign.end,
+                style: textTheme.titleMedium?.copyWith(
+                  fontFamily: AppTheme.monoFont,
+                  color: AppColors.danger,
+                ),
               ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              minPayment == null ? '—' : formatCents(minPayment),
-              textAlign: TextAlign.end,
-              style: textTheme.bodyMedium?.copyWith(
-                fontFamily: AppTheme.monoFont,
+            Expanded(
+              child: Text(
+                apr == null ? '—' : '${apr.toStringAsFixed(2)}%',
+                textAlign: TextAlign.end,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontFamily: AppTheme.monoFont,
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              due == null ? '—' : '$due',
-              textAlign: TextAlign.end,
-              style: textTheme.bodyMedium?.copyWith(
-                fontFamily: AppTheme.monoFont,
+            Expanded(
+              flex: 2,
+              child: Text(
+                minPayment == null ? '—' : formatCents(minPayment),
+                textAlign: TextAlign.end,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontFamily: AppTheme.monoFont,
+                ),
               ),
             ),
-          ),
-        ],
+            Expanded(
+              child: Text(
+                due == null ? '—' : '$due',
+                textAlign: TextAlign.end,
+                style: textTheme.bodyMedium?.copyWith(
+                  fontFamily: AppTheme.monoFont,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

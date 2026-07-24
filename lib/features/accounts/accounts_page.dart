@@ -6,6 +6,7 @@ import '../../data/account_repository.dart';
 import '../../data/money.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import 'account_info_page.dart';
 import 'add_account_dialog.dart';
 
 /// All non-archived accounts with running balance (Phase 1.2).
@@ -22,6 +23,7 @@ class _AccountsPageState extends State<AccountsPage> {
   List<AccountSummary> _rows = const [];
   String? _error;
   bool _loading = true;
+  String? _selectedAccountId;
 
   @override
   void initState() {
@@ -33,6 +35,7 @@ class _AccountsPageState extends State<AccountsPage> {
   void didUpdateWidget(covariant AccountsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.auth?.session != widget.auth?.session) {
+      _selectedAccountId = null;
       _reload();
     }
   }
@@ -82,6 +85,16 @@ class _AccountsPageState extends State<AccountsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = widget.auth;
+    if (_selectedAccountId != null && auth?.session != null) {
+      return AccountInfoPage(
+        auth: auth!,
+        accountId: _selectedAccountId!,
+        onClose: () => setState(() => _selectedAccountId = null),
+        onChanged: _reload,
+      );
+    }
+
     final textTheme = Theme.of(context).textTheme;
 
     return DecoratedBox(
@@ -120,8 +133,8 @@ class _AccountsPageState extends State<AccountsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Every account has a full register. Primary checking is marked below. '
-              'Account detail arrives in Phase 1.3.',
+              'Tap an account for details and credentials. '
+              'Primary checking is marked below.',
               style: textTheme.bodyLarge,
             ),
             const SizedBox(height: 20),
@@ -165,7 +178,12 @@ class _AccountsPageState extends State<AccountsPage> {
                         ),
                         itemBuilder: (context, index) {
                           final row = _rows[index];
-                          return _AccountRow(summary: row);
+                          return _AccountRow(
+                            summary: row,
+                            onTap: () => setState(
+                              () => _selectedAccountId = row.account.id,
+                            ),
+                          );
                         },
                       ),
                     ),
@@ -200,9 +218,10 @@ class _AccountsPageState extends State<AccountsPage> {
 }
 
 class _AccountRow extends StatelessWidget {
-  const _AccountRow({required this.summary});
+  const _AccountRow({required this.summary, required this.onTap});
 
   final AccountSummary summary;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -212,57 +231,61 @@ class _AccountRow extends StatelessWidget {
         ? AppColors.danger
         : AppColors.onSurface;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                Flexible(
-                  child: Text(
-                    account.name,
-                    key: Key('account_row_${account.id}'),
-                    style: textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (account.isPrimary) ...[
-                  const SizedBox(width: 8),
-                  Text(
-                    'PRIMARY',
-                    style: textTheme.labelSmall?.copyWith(
-                      color: AppColors.primaryBright,
-                      fontFamily: AppTheme.monoFont,
-                      letterSpacing: 1,
+    return InkWell(
+      key: Key('account_row_tap_${account.id}'),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      account.name,
+                      key: Key('account_row_${account.id}'),
+                      style: textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  if (account.isPrimary) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      'PRIMARY',
+                      style: textTheme.labelSmall?.copyWith(
+                        color: AppColors.primaryBright,
+                        fontFamily: AppTheme.monoFont,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              account.type.label,
-              style: textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurfaceMuted,
               ),
             ),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text(
-              formatCents(summary.balanceCents),
-              textAlign: TextAlign.end,
-              style: textTheme.titleMedium?.copyWith(
-                fontFamily: AppTheme.monoFont,
-                color: balanceColor,
+            Expanded(
+              flex: 2,
+              child: Text(
+                account.type.label,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
               ),
             ),
-          ),
-        ],
+            Expanded(
+              flex: 2,
+              child: Text(
+                formatCents(summary.balanceCents),
+                textAlign: TextAlign.end,
+                style: textTheme.titleMedium?.copyWith(
+                  fontFamily: AppTheme.monoFont,
+                  color: balanceColor,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

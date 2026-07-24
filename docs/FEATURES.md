@@ -17,8 +17,8 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-0.7 | Audit log table + access-event logging (schema v2) | 0.7 | `done` | `test/audit_log_test.dart` |
 | F-1.1 | Account CRUD + primary flag rules (+ audit writes) | 1.1 | `done` | `test/account_repository_test.dart` |
 | F-1.2 | Accounts list + debt list | 1.2 | `done` | `test/accounts_lists_test.dart` |
-| F-1.3 | Account info screen | 1.3 | `in_progress` | |
-| F-1.4 | Open register for selected account; cold start → primary | 1.4 | `planned` | |
+| F-1.3 | Account info screen | 1.3 | `done` | `test/account_info_page_test.dart`, `test/account_repository_test.dart` |
+| F-1.4 | Open register for selected account; cold start → primary | 1.4 | `in_progress` | |
 | F-2.1 | Transaction CRUD + payee autocomplete (+ audit writes) | 2.1 | `planned` | |
 | F-2.2 | Running balance + virtualized list | 2.2 | `planned` | |
 | F-2.3 | Clear / reconcile + statement ending balance (+ audit) | 2.3 | `planned` | |

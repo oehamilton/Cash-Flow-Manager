@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-07-24
+
+### Added
+
+- Phase 1.3 account info screen (metadata, credentials, debt fields; chart placeholder)
+
 ## [1.2.0] — 2026-07-24
 
 ### Added
