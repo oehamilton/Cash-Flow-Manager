@@ -10,7 +10,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'transaction_editor_dialog.dart';
 
-/// Register surface: account header + transaction CRUD (Phase 2.1).
+/// Register surface: account header + ledger with credit/debit/balance.
 ///
 /// Ledger rows are always read from [accountId] during [build] so switching
 /// accounts cannot show a stale list from a previous register.
@@ -158,7 +158,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
     Account? account;
     var balanceCents = 0;
-    List<Transaction> txs = const [];
+    List<RegisterEntry> entries = const [];
     String? loadError = _error;
 
     if (session != null && accountId != null) {
@@ -168,7 +168,8 @@ class _RegisterPageState extends State<RegisterPage> {
         if (account != null) {
           // Always scope by the widget account id (not cached state).
           balanceCents = accounts.balanceCents(accountId);
-          txs = TransactionRepository(session).listForAccount(accountId);
+          entries =
+              TransactionRepository(session).listRegisterEntries(accountId);
         }
       } on Object catch (e) {
         loadError = e.toString();
@@ -272,45 +273,14 @@ class _RegisterPageState extends State<RegisterPage> {
                     children: [
                       Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
+                          horizontal: 12,
                           vertical: 10,
                         ),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 110,
-                              child: Text(
-                                'Date',
-                                style: textTheme.labelLarge?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                'Payee',
-                                style: textTheme.labelLarge?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
-                                ),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 120,
-                              child: Text(
-                                'Amount',
-                                textAlign: TextAlign.end,
-                                style: textTheme.labelLarge?.copyWith(
-                                  color: AppColors.onSurfaceMuted,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 96),
-                          ],
-                        ),
+                        child: _RegisterColumnHeader(textTheme: textTheme),
                       ),
                       const Divider(height: 1, color: AppColors.outline),
                       Expanded(
-                        child: txs.isEmpty
+                        child: entries.isEmpty
                             ? Center(
                                 child: Text(
                                   'No transactions yet.',
@@ -318,93 +288,32 @@ class _RegisterPageState extends State<RegisterPage> {
                                   style: textTheme.bodyLarge,
                                 ),
                               )
-                            : ListView.separated(
+                            : ListView.builder(
                                 key: ValueKey('register_tx_list_$accountId'),
-                                itemCount: txs.length,
-                                separatorBuilder: (_, _) => const Divider(
-                                  height: 1,
-                                  color: AppColors.outline,
-                                ),
+                                itemCount: entries.length,
                                 itemBuilder: (context, index) {
-                                  final tx = txs[index];
-                                  final payeeLabel =
-                                      tx.payee == null || tx.payee!.isEmpty
-                                          ? '(no payee)'
-                                          : tx.payee!;
-                                  return ListTile(
+                                  final entry = entries[index];
+                                  final tx = entry.transaction;
+                                  return Column(
                                     key: Key('register_tx_${tx.id}'),
-                                    dense: true,
-                                    title: Row(
-                                      children: [
-                                        SizedBox(
-                                          width: 110,
-                                          child: Text(
-                                            _dateLabel(tx.date),
-                                            style: textTheme.bodyMedium
-                                                ?.copyWith(
-                                              fontFamily: AppTheme.monoFont,
-                                            ),
-                                          ),
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (index > 0)
+                                        const Divider(
+                                          height: 1,
+                                          color: AppColors.outline,
                                         ),
-                                        Expanded(
-                                          child: Text(
-                                            payeeLabel,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        SizedBox(
-                                          width: 120,
-                                          child: Text(
-                                            formatCents(tx.amountCents),
-                                            textAlign: TextAlign.end,
-                                            style: textTheme.bodyMedium
-                                                ?.copyWith(
-                                              fontFamily: AppTheme.monoFont,
-                                              color: tx.amountCents < 0
-                                                  ? AppColors.danger
-                                                  : AppColors.onSurface,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    subtitle: tx.memo == null ||
-                                            tx.memo!.isEmpty
-                                        ? (tx.isOpeningBalance
-                                            ? const Text('Opening balance')
-                                            : null)
-                                        : Text(tx.memo!),
-                                    trailing: tx.isOpeningBalance
-                                        ? const SizedBox(width: 96)
-                                        : Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                key: Key(
-                                                  'register_tx_edit_${tx.id}',
-                                                ),
-                                                tooltip: 'Edit',
-                                                onPressed: () =>
-                                                    _editTransaction(tx),
-                                                icon: const Icon(
-                                                  Icons.edit_outlined,
-                                                  size: 20,
-                                                ),
-                                              ),
-                                              IconButton(
-                                                key: Key(
-                                                  'register_tx_delete_${tx.id}',
-                                                ),
-                                                tooltip: 'Delete',
-                                                onPressed: () =>
-                                                    _deleteTransaction(tx),
-                                                icon: const Icon(
-                                                  Icons.delete_outline,
-                                                  size: 20,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                      _RegisterLedgerRow(
+                                        entry: entry,
+                                        dateLabel: _dateLabel(tx.date),
+                                        onEdit: tx.isOpeningBalance
+                                            ? null
+                                            : () => _editTransaction(tx),
+                                        onDelete: tx.isOpeningBalance
+                                            ? null
+                                            : () => _deleteTransaction(tx),
+                                      ),
+                                    ],
                                   );
                                 },
                               ),
@@ -416,6 +325,155 @@ class _RegisterPageState extends State<RegisterPage> {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RegisterColumnHeader extends StatelessWidget {
+  const _RegisterColumnHeader({required this.textTheme});
+
+  final TextTheme textTheme;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = textTheme.labelLarge?.copyWith(
+      color: AppColors.onSurfaceMuted,
+    );
+    return Row(
+      children: [
+        SizedBox(width: 96, child: Text('Date', style: style)),
+        Expanded(child: Text('Payee', style: style)),
+        SizedBox(
+          width: 96,
+          child: Text('Payment', textAlign: TextAlign.end, style: style),
+        ),
+        SizedBox(
+          width: 96,
+          child: Text('Deposit', textAlign: TextAlign.end, style: style),
+        ),
+        SizedBox(
+          width: 104,
+          child: Text('Balance', textAlign: TextAlign.end, style: style),
+        ),
+        const SizedBox(width: 88),
+      ],
+    );
+  }
+}
+
+class _RegisterLedgerRow extends StatelessWidget {
+  const _RegisterLedgerRow({
+    required this.entry,
+    required this.dateLabel,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  final RegisterEntry entry;
+  final String dateLabel;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final tx = entry.transaction;
+    final payeeLabel =
+        tx.payee == null || tx.payee!.isEmpty ? '(no payee)' : tx.payee!;
+    final mono = textTheme.bodyMedium?.copyWith(fontFamily: AppTheme.monoFont);
+    final debit = entry.debitCents;
+    final credit = entry.creditCents;
+    final balance = entry.runningBalanceCents;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 96,
+                child: Text(dateLabel, style: mono),
+              ),
+              Expanded(
+                child: Text(payeeLabel, overflow: TextOverflow.ellipsis),
+              ),
+              SizedBox(
+                width: 96,
+                child: Text(
+                  debit == null ? '' : formatCents(debit),
+                  textAlign: TextAlign.end,
+                  style: mono?.copyWith(color: AppColors.danger),
+                ),
+              ),
+              SizedBox(
+                width: 96,
+                child: Text(
+                  credit == null ? '' : formatCents(credit),
+                  textAlign: TextAlign.end,
+                  style: mono,
+                ),
+              ),
+              SizedBox(
+                width: 104,
+                child: Text(
+                  formatCents(balance),
+                  key: Key('register_tx_balance_${tx.id}'),
+                  textAlign: TextAlign.end,
+                  style: mono?.copyWith(
+                    color: balance < 0 ? AppColors.danger : AppColors.onSurface,
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 88,
+                child: onEdit == null
+                    ? const SizedBox.shrink()
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            key: Key('register_tx_edit_${tx.id}'),
+                            tooltip: 'Edit',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: onEdit,
+                            icon: const Icon(Icons.edit_outlined, size: 18),
+                          ),
+                          IconButton(
+                            key: Key('register_tx_delete_${tx.id}'),
+                            tooltip: 'Delete',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: onDelete,
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                          ),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+          if (tx.memo != null && tx.memo!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 96, top: 2),
+              child: Text(
+                tx.memo!,
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+              ),
+            )
+          else if (tx.isOpeningBalance)
+            Padding(
+              padding: const EdgeInsets.only(left: 96, top: 2),
+              child: Text(
+                'Opening balance',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

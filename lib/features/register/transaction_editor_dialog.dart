@@ -20,7 +20,9 @@ class TransactionEditorResult {
   final int amountCents;
 }
 
-/// Modal form to create or edit a register transaction (Phase 2.1).
+/// Modal form to create or edit a register transaction.
+///
+/// Amounts use separate Payment (debit) and Deposit (credit) fields.
 class TransactionEditorDialog extends StatefulWidget {
   const TransactionEditorDialog({
     super.key,
@@ -52,10 +54,15 @@ class TransactionEditorDialog extends StatefulWidget {
 
 class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
   late final TextEditingController _memoController;
-  late final TextEditingController _amountController;
+  late final TextEditingController _paymentController;
+  late final TextEditingController _depositController;
   late DateTime _date;
   String _payeeText = '';
   String? _error;
+
+  static final _amountAllow = FilteringTextInputFormatter.allow(
+    RegExp(r'[0-9.$,]'),
+  );
 
   @override
   void initState() {
@@ -63,10 +70,12 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
     final initial = widget.initial;
     _payeeText = initial?.payee ?? '';
     _memoController = TextEditingController(text: initial?.memo ?? '');
-    _amountController = TextEditingController(
-      text: initial == null
-          ? ''
-          : formatCents(initial.amountCents).replaceFirst(r'$', ''),
+    final amount = initial?.amountCents ?? 0;
+    _paymentController = TextEditingController(
+      text: amount < 0 ? _plainCents(-amount) : '',
+    );
+    _depositController = TextEditingController(
+      text: amount > 0 ? _plainCents(amount) : '',
     );
     _date = initial?.date ?? DateTime.now();
   }
@@ -74,20 +83,40 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
   @override
   void dispose() {
     _memoController.dispose();
-    _amountController.dispose();
+    _paymentController.dispose();
+    _depositController.dispose();
     super.dispose();
   }
+
+  static String _plainCents(int cents) =>
+      formatCents(cents).replaceFirst(r'$', '');
 
   void _submit() {
     setState(() => _error = null);
     try {
-      final result = TransactionEditorResult(
-        date: _date,
-        payee: _payeeText,
-        memo: _memoController.text,
-        amountCents: parseDollarsToCents(_amountController.text),
+      final paymentRaw = _paymentController.text.trim();
+      final depositRaw = _depositController.text.trim();
+      final hasPayment = paymentRaw.isNotEmpty;
+      final hasDeposit = depositRaw.isNotEmpty;
+      if (hasPayment == hasDeposit) {
+        throw const FormatException(
+          'Enter either a Payment or a Deposit (not both)',
+        );
+      }
+      final amountCents = hasPayment
+          ? -parseDollarsToCents(paymentRaw)
+          : parseDollarsToCents(depositRaw);
+      if (amountCents == 0) {
+        throw const FormatException('Amount cannot be zero');
+      }
+      Navigator.of(context).pop(
+        TransactionEditorResult(
+          date: _date,
+          payee: _payeeText,
+          memo: _memoController.text,
+          amountCents: amountCents,
+        ),
       );
-      Navigator.of(context).pop(result);
     } on FormatException catch (e) {
       setState(() => _error = e.message);
     }
@@ -177,21 +206,49 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 12),
-            TextField(
-              key: const Key('tx_amount_field'),
-              controller: _amountController,
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                hintText: '+ deposit / − payment',
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-                signed: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-$,]')),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const Key('tx_payment_field'),
+                    controller: _paymentController,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment',
+                      hintText: 'Debit',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [_amountAllow],
+                    onChanged: (_) {
+                      if (_paymentController.text.trim().isNotEmpty) {
+                        _depositController.clear();
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    key: const Key('tx_deposit_field'),
+                    controller: _depositController,
+                    decoration: const InputDecoration(
+                      labelText: 'Deposit',
+                      hintText: 'Credit',
+                    ),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [_amountAllow],
+                    onChanged: (_) {
+                      if (_depositController.text.trim().isNotEmpty) {
+                        _paymentController.clear();
+                      }
+                    },
+                    onSubmitted: (_) => _submit(),
+                  ),
+                ),
               ],
-              onSubmitted: (_) => _submit(),
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),

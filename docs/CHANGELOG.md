@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-07-24
+
+### Added
+
+- Phase 2.2 register Payment / Deposit / Balance columns with running balance
+
 ## [2.1.0] — 2026-07-24
 
 ### Added
