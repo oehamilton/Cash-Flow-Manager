@@ -1,10 +1,19 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 
 import '../../auth/auth_service.dart';
+import '../../auth/vault_backup_service.dart';
 import '../../core/app_info.dart';
+import '../../data/account.dart';
+import '../../data/account_repository.dart';
 import '../../data/app_settings_repository.dart';
 import '../../data/audit_categories.dart';
 import '../../data/audit_log_repository.dart';
+import '../../data/register_csv_exporter.dart';
+import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'activity_log_panel.dart';
@@ -38,7 +47,9 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   bool _busy = false;
   String? _message;
+  bool _messageIsError = false;
   late int _lockTimeoutMinutes;
+  String? _exportAccountId;
 
   static const _timeoutChoices = <int>[
     0, // never
@@ -66,13 +77,20 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() {
       _busy = true;
       _message = null;
+      _messageIsError = false;
     });
     try {
       await action();
     } on AuthException catch (e) {
-      setState(() => _message = e.message);
+      setState(() {
+        _message = e.message;
+        _messageIsError = true;
+      });
     } on Object catch (e) {
-      setState(() => _message = e.toString());
+      setState(() {
+        _message = e.toString();
+        _messageIsError = true;
+      });
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -90,10 +108,107 @@ class _SettingsPageState extends State<SettingsPage> {
     return '$minutes minutes';
   }
 
+  Future<void> _backupVault() async {
+    final source = widget.databasePath;
+    final session = widget.auth?.session;
+    if (source == null || session == null) {
+      throw StateError('Unlock the vault before backing up');
+    }
+
+    const typeGroup = XTypeGroup(
+      label: 'Cash Flow Manager vault',
+      extensions: <String>['cfm.db', 'db'],
+    );
+    final location = await getSaveLocation(
+      acceptedTypeGroups: const [typeGroup],
+      suggestedName: VaultBackupService.suggestedFileName(),
+      initialDirectory: p.dirname(source),
+      confirmButtonText: 'Backup',
+    );
+    if (location == null) {
+      return;
+    }
+
+    await VaultBackupService.backupEncryptedVault(
+      sourceDatabasePath: source,
+      destDatabasePath: location.path,
+    );
+    AuditLogRepository(session).append(
+      category: AuditCategory.settings,
+      action: AuditAction.backupVault,
+      summary: 'Backed up encrypted vault',
+      entityType: AuditEntityType.vault,
+      detail: {'dest': location.path},
+    );
+    if (mounted) {
+      setState(() {
+        _message = 'Vault backed up to ${location.path}';
+        _messageIsError = false;
+      });
+    }
+  }
+
+  Future<void> _exportRegisterCsv() async {
+    final session = widget.auth?.session;
+    if (session == null) {
+      throw StateError('Unlock the vault before exporting');
+    }
+    final accounts = AccountRepository(session).listAccounts();
+    if (accounts.isEmpty) {
+      throw StateError('No accounts to export');
+    }
+    final accountId = _exportAccountId ??
+        accounts.firstWhere((a) => a.isPrimary, orElse: () => accounts.first).id;
+    final account = accounts.firstWhere((a) => a.id == accountId);
+    final entries =
+        TransactionRepository(session).listRegisterEntries(account.id);
+
+    const typeGroup = XTypeGroup(
+      label: 'CSV',
+      extensions: <String>['csv'],
+    );
+    final location = await getSaveLocation(
+      acceptedTypeGroups: const [typeGroup],
+      suggestedName: RegisterCsvExporter.suggestedFileName(account.name),
+      confirmButtonText: 'Export',
+    );
+    if (location == null) {
+      return;
+    }
+
+    final csv = RegisterCsvExporter.export(entries);
+    await File(location.path).writeAsString(csv);
+    AuditLogRepository(session).append(
+      category: AuditCategory.settings,
+      action: AuditAction.exportCsv,
+      summary: 'Exported register CSV for "${account.name}"',
+      entityType: AuditEntityType.account,
+      entityId: account.id,
+      detail: {
+        'dest': location.path,
+        'rows': entries.length,
+      },
+    );
+    if (mounted) {
+      setState(() {
+        _message =
+            'Exported ${entries.length} rows to ${location.path}';
+        _messageIsError = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final session = widget.auth?.session;
+    final accounts = session == null
+        ? const <Account>[]
+        : AccountRepository(session).listAccounts();
+    final exportValue = accounts.any((a) => a.id == _exportAccountId)
+        ? _exportAccountId
+        : (accounts.where((a) => a.isPrimary).map((a) => a.id).firstOrNull ??
+            accounts.firstOrNull?.id);
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -116,7 +231,7 @@ class _SettingsPageState extends State<SettingsPage> {
               Text('Settings', style: textTheme.headlineMedium),
               const SizedBox(height: 8),
               Text(
-                'Security, idle lock, and activity for this vault.',
+                'Security, backup, and activity for this vault.',
                 style: textTheme.bodyLarge,
               ),
               const SizedBox(height: 24),
@@ -201,11 +316,63 @@ class _SettingsPageState extends State<SettingsPage> {
                 icon: const Icon(Icons.lock_outline),
                 label: const Text('Lock vault'),
               ),
+              const SizedBox(height: 32),
+              Text('Backup & export', style: textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                'Backup keeps the encrypted vault (database + meta). '
+                'CSV is a plain-text register export for one account.',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                key: const Key('settings_backup_vault'),
+                onPressed: (_busy || session == null || widget.databasePath == null)
+                    ? null
+                    : () => _run(_backupVault),
+                icon: const Icon(Icons.cloud_download_outlined),
+                label: const Text('Backup vault…'),
+              ),
+              const SizedBox(height: 16),
+              if (accounts.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  key: const Key('settings_export_account'),
+                  initialValue: exportValue,
+                  decoration: const InputDecoration(
+                    labelText: 'Account for CSV export',
+                  ),
+                  items: [
+                    for (final account in accounts)
+                      DropdownMenuItem(
+                        value: account.id,
+                        child: Text(account.name),
+                      ),
+                  ],
+                  onChanged: _busy
+                      ? null
+                      : (value) => setState(() => _exportAccountId = value),
+                ),
+              if (accounts.isNotEmpty) const SizedBox(height: 12),
+              OutlinedButton.icon(
+                key: const Key('settings_export_csv'),
+                onPressed: (_busy || session == null || accounts.isEmpty)
+                    ? null
+                    : () => _run(_exportRegisterCsv),
+                icon: const Icon(Icons.table_view_outlined),
+                label: const Text('Export register CSV…'),
+              ),
               if (_message != null) ...[
                 const SizedBox(height: 16),
                 Text(
                   _message!,
-                  style: textTheme.bodyMedium?.copyWith(color: AppColors.danger),
+                  key: const Key('settings_status'),
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: _messageIsError
+                        ? AppColors.danger
+                        : AppColors.primaryBright,
+                  ),
                 ),
               ],
               const SizedBox(height: 32),

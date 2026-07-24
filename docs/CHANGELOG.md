@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [5.2.0] — 2026-07-24
+
+### Added
+
+- Phase 5.2 encrypted vault backup (database + meta) from Settings
+- Optional CSV register export for a selected account (dollar amounts with two decimals)
+
 ## [5.1.0] — 2026-07-24
 
 ### Added
