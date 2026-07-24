@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-07-24
+
+### Added
+
+- Phase 2.4 sticky register header (reconciled, today, 4/8-wk trough placeholders)
+
 ## [2.3.0] — 2026-07-24
 
 ### Added

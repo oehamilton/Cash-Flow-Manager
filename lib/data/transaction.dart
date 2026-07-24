@@ -124,6 +124,23 @@ List<RegisterEntry> withRunningBalances(Iterable<Transaction> transactions) {
   return entries;
 }
 
+/// Sticky register header metrics (Phase 2.4).
+///
+/// [trough4WeeksCents] / [trough8WeeksCents] stay null until forecast (Phase 3+).
+class RegisterMetrics {
+  const RegisterMetrics({
+    required this.reconciledCents,
+    required this.todayCents,
+    this.trough4WeeksCents,
+    this.trough8WeeksCents,
+  });
+
+  final int reconciledCents;
+  final int todayCents;
+  final int? trough4WeeksCents;
+  final int? trough8WeeksCents;
+}
+
 /// Fields required to create a user-entered transaction (Phase 2.1).
 class TransactionDraft {
   const TransactionDraft({

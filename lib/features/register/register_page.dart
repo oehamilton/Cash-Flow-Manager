@@ -9,9 +9,10 @@ import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'reconcile_dialog.dart';
+import 'register_metrics_bar.dart';
 import 'transaction_editor_dialog.dart';
 
-/// Register surface: account header + ledger with credit/debit/balance.
+/// Register surface: sticky metrics header + ledger (Phase 2.4 layout gate).
 ///
 /// Ledger rows are always read from [accountId] during [build] so switching
 /// accounts cannot show a stale list from a previous register.
@@ -196,8 +197,7 @@ class _RegisterPageState extends State<RegisterPage> {
     final accountId = widget.accountId;
 
     Account? account;
-    var balanceCents = 0;
-    var clearedBalanceCents = 0;
+    RegisterMetrics? metrics;
     List<RegisterEntry> entries = const [];
     String? loadError = _error;
 
@@ -208,8 +208,7 @@ class _RegisterPageState extends State<RegisterPage> {
         account = accounts.getById(accountId);
         if (account != null) {
           // Always scope by the widget account id (not cached state).
-          balanceCents = accounts.balanceCents(accountId);
-          clearedBalanceCents = txs.clearedBalanceCents(accountId);
+          metrics = txs.metricsFor(accountId);
           entries = txs.listRegisterEntries(accountId);
         }
       } on Object catch (e) {
@@ -281,23 +280,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   color: AppColors.onSurfaceMuted,
                 ),
               ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 32,
-                runSpacing: 12,
-                children: [
-                  _BalanceMetric(
-                    label: 'Balance',
-                    valueKey: const Key('register_balance'),
-                    cents: balanceCents,
-                  ),
-                  _BalanceMetric(
-                    label: 'Cleared',
-                    valueKey: const Key('register_cleared_balance'),
-                    cents: clearedBalanceCents,
-                  ),
-                ],
-              ),
+              const SizedBox(height: 12),
+              // Sticky chrome: metrics + column labels stay above the scroll.
+              if (metrics != null) RegisterMetricsBar(metrics: metrics),
               if (loadError != null) ...[
                 const SizedBox(height: 12),
                 Text(
@@ -308,7 +293,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               Expanded(
                 child: DecoratedBox(
                   key: ValueKey('register_ledger_$accountId'),
@@ -318,12 +303,15 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   child: Column(
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+                      Material(
+                        color: AppColors.surfaceElevated.withValues(alpha: 0.85),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                          child: _RegisterColumnHeader(textTheme: textTheme),
                         ),
-                        child: _RegisterColumnHeader(textTheme: textTheme),
                       ),
                       const Divider(height: 1, color: AppColors.outline),
                       Expanded(
@@ -379,44 +367,6 @@ class _RegisterPageState extends State<RegisterPage> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _BalanceMetric extends StatelessWidget {
-  const _BalanceMetric({
-    required this.label,
-    required this.valueKey,
-    required this.cents,
-  });
-
-  final String label;
-  final Key valueKey;
-  final int cents;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: textTheme.labelLarge?.copyWith(
-            color: AppColors.onSurfaceMuted,
-            fontFamily: AppTheme.monoFont,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          formatCents(cents),
-          key: valueKey,
-          style: textTheme.headlineSmall?.copyWith(
-            fontFamily: AppTheme.monoFont,
-            color: cents < 0 ? AppColors.danger : AppColors.onSurface,
-          ),
-        ),
-      ],
     );
   }
 }
