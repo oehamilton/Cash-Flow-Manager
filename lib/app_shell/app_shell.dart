@@ -107,8 +107,9 @@ class _AppShellState extends State<AppShell> {
           key: Key('page_settings'),
           title: 'Settings',
           subtitle:
-              'Database path, security, and forecast horizon. Wired in later Phase 0.',
-          phaseHint: '// phase 0.3+ — db path, unlock, horizon',
+              'Encrypted DB layer is ready (Phase 0.3). Path picker, unlock UI, '
+              'and horizon settings wire up next.',
+          phaseHint: '// phase 0.4–0.5 — unlock, wizard, db path UI',
         ),
     };
   }
