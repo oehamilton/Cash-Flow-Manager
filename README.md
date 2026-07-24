@@ -2,13 +2,14 @@
 
 Local-first bank register and short-horizon cash flow forecaster for Windows 11 (Android later). Built with Flutter; data stored in a user-selectable encrypted SQLite database.
 
-**Current version:** 0.1.0 (Phase 0.1 scaffold)
+**Current version:** 0.2.0 (Phase 0.2 theme + app shell)
 
 ## Documentation
 
 - **[Requirements & phased plan](docs/PLAN.md)** — approved product and development plan
 - **[Feature tracker](docs/FEATURES.md)** — progress by phase/subphase
 - **[Changelog](docs/CHANGELOG.md)** — notable changes per merge
+- **[Fonts](docs/FONTS.md)** — bundled UI typefaces (OFL)
 
 ## Prerequisites
 

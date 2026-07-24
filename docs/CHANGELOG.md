@@ -4,9 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-23
+
 ### Added
 
-- Approved requirements and phased development plan (`docs/PLAN.md`)
+- Theme tokens (Rajdhani / IBM Plex Mono), NavigationRail shell, placeholder destinations
+- Register row color tokens reserved for Phase 3
 
 ## [0.1.0] — 2026-07-23
 

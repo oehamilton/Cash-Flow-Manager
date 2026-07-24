@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_shell/app_shell.dart';
 import 'core/app_info.dart';
-import 'features/home/home_page.dart';
 import 'theme/app_theme.dart';
 
 class CashFlowApp extends StatelessWidget {
@@ -13,7 +13,7 @@ class CashFlowApp extends StatelessWidget {
       title: AppInfo.name,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
-      home: const HomePage(),
+      home: const AppShell(),
     );
   }
 }
