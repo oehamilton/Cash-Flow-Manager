@@ -574,8 +574,9 @@ class _RegisterLedgerRow extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final tx = entry.transaction;
     final style = RegisterRowStyle.forTransaction(tx);
-    final payeeLabel =
+    final basePayee =
         tx.payee == null || tx.payee!.isEmpty ? '(no payee)' : tx.payee!;
+    final payeeLabel = tx.isUserOverridden ? '$basePayee · edited' : basePayee;
     final foreground =
         style.mutedForeground ? AppColors.onSurfaceMuted : AppColors.onSurface;
     final mono = textTheme.bodyMedium?.copyWith(

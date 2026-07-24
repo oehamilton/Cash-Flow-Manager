@@ -177,7 +177,18 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
                   label: Text(_dateLabel(_date)),
                 ),
               ),
-              if (_isFutureDate)
+              if (widget.initial?.isRecurringGenerated == true)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 4),
+                  child: Text(
+                    key: const Key('tx_generated_hint'),
+                    'Recurring instance — your edits are kept (until cleared).',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.primaryBright,
+                        ),
+                  ),
+                )
+              else if (_isFutureDate)
                 Padding(
                   padding: const EdgeInsets.only(top: 4, bottom: 4),
                   child: Text(

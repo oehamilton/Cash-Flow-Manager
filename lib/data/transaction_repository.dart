@@ -267,6 +267,10 @@ WHERE id = ?
   }
 
   /// Updates editable fields; opening-balance and cleared rows are protected.
+  ///
+  /// Uncleared [TransactionSource.recurringGenerated] rows may be edited
+  /// (Phase 3.4). Edits set [Transaction.isUserOverridden] and keep the
+  /// instance key so rematerialize will not recreate or overwrite them.
   void update(String id, TransactionUpdate patch, {DateTime? asOf}) {
     final existing = getById(id);
     if (existing == null) {
@@ -304,6 +308,7 @@ WHERE id = ?
             asOf: asOf,
           )
         : existing.source;
+    final markOverridden = existing.isRecurringGenerated;
     final now = DateTime.now().toUtc().toIso8601String();
 
     _db.execute('BEGIN IMMEDIATE');
@@ -316,10 +321,20 @@ UPDATE transactions SET
   memo = ?,
   amount_cents = ?,
   source = ?,
+  is_user_overridden = CASE WHEN ? = 1 THEN 1 ELSE is_user_overridden END,
   updated_at = ?
 WHERE id = ?
 ''',
-        [nextDate, nextPayee, nextMemo, amount, nextSource, now, id],
+        [
+          nextDate,
+          nextPayee,
+          nextMemo,
+          amount,
+          nextSource,
+          markOverridden ? 1 : 0,
+          now,
+          id,
+        ],
       );
 
       final updated = getById(id)!;
@@ -335,6 +350,7 @@ WHERE id = ?
           'payee': updated.payee,
           'amount_cents': updated.amountCents,
           'source': updated.source,
+          if (updated.isUserOverridden) 'is_user_overridden': true,
         },
       );
 

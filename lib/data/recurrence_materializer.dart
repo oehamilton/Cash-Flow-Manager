@@ -23,6 +23,8 @@ class MaterializeResult {
 /// Generates uncleared register rows for active recurrence rules (Phase 3.2).
 ///
 /// Instance keys are `{ruleId}:{YYYY-MM-DD}` so re-runs are idempotent.
+/// Existing rows (including user-edited generated instances) are never
+/// overwritten (Phase 3.4).
 class RecurrenceMaterializer {
   RecurrenceMaterializer(this._session, {Uuid? uuid})
       : _uuid = uuid ?? const Uuid();

@@ -44,6 +44,9 @@ class Transaction {
 
   bool get isOpeningBalance => source == TransactionSource.openingBalance;
 
+  bool get isRecurringGenerated =>
+      source == TransactionSource.recurringGenerated;
+
   factory Transaction.fromRow(Map<String, Object?> row) {
     return Transaction(
       id: row['id'] as String,

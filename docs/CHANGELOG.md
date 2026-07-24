@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [3.4.0] — 2026-07-24
+
+### Added
+
+- Phase 3.4 edit recurring-generated rows until cleared (`is_user_overridden`)
+
 ## [3.3.0] — 2026-07-24
 
 ### Added
