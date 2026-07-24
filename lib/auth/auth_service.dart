@@ -1,9 +1,12 @@
 import 'dart:io';
 
+import '../data/audit_categories.dart';
+import '../data/audit_log_repository.dart';
 import '../data/database_exceptions.dart';
 import '../data/database_session.dart';
 import 'biometric_auth.dart';
 import 'password_kdf.dart';
+import 'pending_access_audit.dart';
 import 'secure_store.dart';
 import 'vault_files.dart';
 import 'vault_meta.dart';
@@ -110,6 +113,22 @@ class AuthService {
     _session = session;
     _sessionPassphrase = passphrase;
 
+    await PendingAccessAudit.flush(session);
+    _audit(session).logAccess(
+      action: AuditAction.createVault,
+      summary: overwrite ? 'Vault overwritten' : 'Vault created',
+      detail: {
+        'overwrite': overwrite,
+        'force_unlock': forceUnlock,
+      },
+    );
+    if (forceUnlock) {
+      _audit(session).logAccess(
+        action: AuditAction.forceUnlock,
+        summary: 'Force unlock used while creating vault',
+      );
+    }
+
     if (enableHello) {
       await enableHelloUnlock();
     }
@@ -141,14 +160,36 @@ class AuthService {
       );
       _session = session;
       _sessionPassphrase = passphrase;
+      await _onUnlocked(
+        session,
+        action: AuditAction.unlockPassword,
+        summary: 'Unlocked with password',
+        forceUnlock: forceUnlock,
+      );
       return session;
     } on DatabaseKeyException {
+      await PendingAccessAudit.enqueueUnlockFailed(
+        databasePath: path,
+        reason: 'incorrect_password',
+      );
       throw AuthException('Incorrect password');
+    } on DatabaseLockedException {
+      await PendingAccessAudit.enqueueUnlockFailed(
+        databasePath: path,
+        reason: 'database_locked',
+      );
+      rethrow;
     }
   }
 
   Future<DatabaseSession> unlockWithHello({bool forceUnlock = false}) async {
+    final path = await databasePath();
+
     if (!await isHelloEnabled()) {
+      await PendingAccessAudit.enqueueUnlockFailed(
+        databasePath: path,
+        reason: 'hello_not_enabled',
+      );
       throw AuthException('Windows Hello is not enabled for this vault');
     }
 
@@ -156,18 +197,25 @@ class AuthService {
       reason: 'Unlock Cash Flow Manager',
     );
     if (!ok) {
+      await PendingAccessAudit.enqueueUnlockFailed(
+        databasePath: path,
+        reason: 'hello_cancelled_or_failed',
+      );
       throw AuthException('Windows Hello authentication failed');
     }
 
     final passphrase = await _secureStore.read(_helloPassphraseKey);
     if (passphrase == null || passphrase.isEmpty) {
+      await PendingAccessAudit.enqueueUnlockFailed(
+        databasePath: path,
+        reason: 'hello_credentials_missing',
+      );
       throw AuthException(
         'Hello unlock data missing. Unlock with your password and re-enable Hello.',
       );
     }
 
     try {
-      final path = await databasePath();
       final session = await DatabaseSession.open(
         databasePath: path,
         passphrase: passphrase,
@@ -175,18 +223,35 @@ class AuthService {
       );
       _session = session;
       _sessionPassphrase = passphrase;
+      await _onUnlocked(
+        session,
+        action: AuditAction.unlockHello,
+        summary: 'Unlocked with Windows Hello',
+        forceUnlock: forceUnlock,
+      );
       return session;
     } on DatabaseKeyException {
+      await PendingAccessAudit.enqueueUnlockFailed(
+        databasePath: path,
+        reason: 'hello_credentials_invalid',
+      );
       throw AuthException(
         'Stored Hello credentials are invalid. Unlock with password and re-enable Hello.',
       );
+    } on DatabaseLockedException {
+      await PendingAccessAudit.enqueueUnlockFailed(
+        databasePath: path,
+        reason: 'database_locked',
+      );
+      rethrow;
     }
   }
 
   /// Call after a successful password unlock (or during create).
   Future<void> enableHelloUnlock() async {
     final passphrase = _sessionPassphrase;
-    if (passphrase == null || _session == null) {
+    final session = _session;
+    if (passphrase == null || session == null) {
       throw AuthException('Unlock with your password before enabling Hello');
     }
     if (!await isHelloAvailable()) {
@@ -207,25 +272,61 @@ class AuthService {
       throw AuthException('Vault metadata missing');
     }
     await meta.copyWith(helloEnabled: true).save(path);
+    _audit(session).logAccess(
+      action: AuditAction.helloEnable,
+      summary: 'Windows Hello unlock enabled',
+    );
   }
 
   Future<void> disableHelloUnlock() async {
+    final session = _session;
     await _secureStore.delete(_helloPassphraseKey);
     final path = await databasePath();
     final meta = await VaultMeta.load(path);
     if (meta != null) {
       await meta.copyWith(helloEnabled: false).save(path);
     }
+    if (session != null) {
+      _audit(session).logAccess(
+        action: AuditAction.helloDisable,
+        summary: 'Windows Hello unlock disabled',
+      );
+    }
   }
 
   Future<void> lock() async {
     final session = _session;
+    if (session != null) {
+      _audit(session).logAccess(
+        action: AuditAction.lock,
+        summary: 'Vault locked',
+      );
+    }
     _session = null;
     _sessionPassphrase = null;
     if (session != null) {
       await session.close();
     }
   }
+
+  Future<void> _onUnlocked(
+    DatabaseSession session, {
+    required String action,
+    required String summary,
+    required bool forceUnlock,
+  }) async {
+    await PendingAccessAudit.flush(session);
+    _audit(session).logAccess(action: action, summary: summary);
+    if (forceUnlock) {
+      _audit(session).logAccess(
+        action: AuditAction.forceUnlock,
+        summary: 'Force unlock used',
+      );
+    }
+  }
+
+  AuditLogRepository _audit(DatabaseSession session) =>
+      AuditLogRepository(session);
 }
 
 class AuthException implements Exception {

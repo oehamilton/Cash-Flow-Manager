@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-23
+
+### Added
+
+- Phase 0.7 schema v2 `audit_log` + access-event logging (create/unlock/lock/Hello/force; failed unlocks via pending sidecar)
+
 ## [0.6.0] — 2026-07-23
 
 ### Added

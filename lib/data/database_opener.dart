@@ -51,11 +51,12 @@ class DatabaseOpener {
   }
 
   static void _migrate(Database db, String databasePath) {
-    final version = _readSchemaVersion(db);
-    if (version == null) {
-      _createV1(db);
+    final current = _readSchemaVersion(db);
+    if (current == null) {
+      _createLatest(db);
       return;
     }
+    var version = current;
     if (version == kSchemaVersion) {
       return;
     }
@@ -65,11 +66,17 @@ class DatabaseOpener {
       );
     }
 
-    // Future migrations: backup then upgrade.
     _backupBeforeMigration(databasePath, version);
-    throw DatabaseMigrationException(
-      'No migration path from schema v$version to v$kSchemaVersion',
-    );
+    while (version < kSchemaVersion) {
+      if (version == 1) {
+        _migrateV1ToV2(db);
+        version = 2;
+        continue;
+      }
+      throw DatabaseMigrationException(
+        'No migration path from schema v$version to v$kSchemaVersion',
+      );
+    }
   }
 
   static int? _readSchemaVersion(Database db) {
@@ -86,15 +93,48 @@ class DatabaseOpener {
     return rows.first['version'] as int;
   }
 
-  static void _createV1(Database db) {
+  /// Fresh database at the current schema version.
+  static void _createLatest(Database db) {
     db.execute('BEGIN IMMEDIATE');
     try {
       for (final sql in SchemaV1.createStatements) {
         db.execute(sql);
       }
+      for (final sql in SchemaV2.migrationStatements) {
+        db.execute(sql);
+      }
       db.execute('INSERT INTO schema_version (version) VALUES (?)', [
         kSchemaVersion,
       ]);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  /// Test/helper: create a v1-only database (no audit_log).
+  static void createV1OnlyForTests(Database db) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final sql in SchemaV1.createStatements) {
+        db.execute(sql);
+      }
+      db.execute('INSERT INTO schema_version (version) VALUES (?)', [1]);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  static void _migrateV1ToV2(Database db) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final sql in SchemaV2.migrationStatements) {
+        db.execute(sql);
+      }
+      db.execute('UPDATE schema_version SET version = ?', [2]);
       db.execute('COMMIT');
     } on Object {
       db.execute('ROLLBACK');

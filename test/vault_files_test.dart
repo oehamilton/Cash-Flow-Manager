@@ -35,15 +35,17 @@ void main() {
     expect(await VaultFiles.presence(dbPath), VaultPresence.complete);
   });
 
-  test('deleteVault removes db, meta, and lock', () async {
+  test('deleteVault removes db, meta, lock, and pending audit', () async {
     await File(dbPath).writeAsString('db');
     await File(VaultMeta.pathForDatabase(dbPath)).writeAsString('{}');
     await File('$dbPath.cfm.lock').writeAsString('lock');
+    await File('$dbPath.pending-audit.jsonl').writeAsString('{}\n');
 
     await VaultFiles.deleteVault(dbPath);
 
     expect(await File(dbPath).exists(), isFalse);
     expect(await File(VaultMeta.pathForDatabase(dbPath)).exists(), isFalse);
     expect(await File('$dbPath.cfm.lock').exists(), isFalse);
+    expect(await File('$dbPath.pending-audit.jsonl').exists(), isFalse);
   });
 }
