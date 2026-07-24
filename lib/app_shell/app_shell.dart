@@ -59,7 +59,10 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  int _loadGeneration = 0;
+
   Future<void> _loadAccountContext() async {
+    final generation = ++_loadGeneration;
     final auth = widget.auth;
     String? path;
     String? registerId = _registerAccountId;
@@ -74,7 +77,8 @@ class _AppShellState extends State<AppShell> {
     } else {
       registerId = null;
     }
-    if (!mounted) {
+    // Skip if Open register (or a newer load) won the race during await.
+    if (!mounted || generation != _loadGeneration) {
       return;
     }
     setState(() {
@@ -84,6 +88,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   void _openRegister(String accountId) {
+    _loadGeneration++; // invalidate in-flight cold-start resolution
     setState(() {
       _registerAccountId = accountId;
       _destination = AppDestination.register;
