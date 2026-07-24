@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../app_shell/app_shell.dart';
 import '../../auth/auth_service.dart';
+import '../../data/account_repository.dart';
+import '../wizard/setup_wizard_page.dart';
 import 'unlock_page.dart';
 
-/// Routes between create-password, unlock, and the main shell.
+/// Routes between setup wizard, unlock, and the main shell.
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key, this.auth});
 
@@ -20,6 +22,7 @@ class _AuthGateState extends State<AuthGate> {
   bool _vaultExists = false;
   bool _helloEnabled = false;
   bool _helloAvailable = false;
+  bool _needsPrimary = false;
 
   @override
   void initState() {
@@ -31,6 +34,10 @@ class _AuthGateState extends State<AuthGate> {
     final exists = await _auth.vaultExists();
     final helloAvailable = await _auth.isHelloAvailable();
     final helloEnabled = exists ? await _auth.isHelloEnabled() : false;
+    var needsPrimary = false;
+    if (_auth.isUnlocked) {
+      needsPrimary = !AccountRepository(_auth.session!).hasPrimaryAccount();
+    }
     if (!mounted) {
       return;
     }
@@ -38,6 +45,7 @@ class _AuthGateState extends State<AuthGate> {
       _vaultExists = exists;
       _helloAvailable = helloAvailable;
       _helloEnabled = helloEnabled;
+      _needsPrimary = needsPrimary;
       _loading = false;
     });
   }
@@ -54,9 +62,29 @@ class _AuthGateState extends State<AuthGate> {
     });
   }
 
-  void _onUnlocked() {
-    setState(() {});
-    _refreshHelloFlags();
+  Future<void> _onUnlocked() async {
+    final needsPrimary =
+        !AccountRepository(_auth.session!).hasPrimaryAccount();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _needsPrimary = needsPrimary);
+    await _refreshHelloFlags();
+  }
+
+  Future<void> _onSetupFinished() async {
+    if (!mounted) {
+      return;
+    }
+    // Fresh wizard starts with _vaultExists == false; mark it true so we
+    // leave the wizard. Opening an existing vault may still need primary setup.
+    final needsPrimary = _auth.isUnlocked &&
+        !AccountRepository(_auth.session!).hasPrimaryAccount();
+    setState(() {
+      _vaultExists = true;
+      _needsPrimary = needsPrimary;
+    });
+    await _refreshHelloFlags();
   }
 
   Future<void> _lock() async {
@@ -64,40 +92,59 @@ class _AuthGateState extends State<AuthGate> {
     if (!mounted) {
       return;
     }
-    setState(() {});
+    setState(() {
+      _needsPrimary = false;
+    });
     await _bootstrap();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      // Non-animating placeholder so widget tests can pump without hanging
-      // on an indeterminate CircularProgressIndicator ticker.
       return const Scaffold(
         body: Center(child: Text('Loading…', key: Key('auth_loading'))),
       );
     }
 
-    if (_auth.isUnlocked) {
-      return AppShell(
-        onLock: _lock,
-        helloEnabled: _helloEnabled,
-        helloAvailable: _helloAvailable,
-        onToggleHello: (enable) async {
-          if (enable) {
-            await _auth.enableHelloUnlock();
-          } else {
-            await _auth.disableHelloUnlock();
-          }
-          await _refreshHelloFlags();
-        },
+    if (!_vaultExists) {
+      return SetupWizardPage(
+        key: const Key('setup_wizard_fresh'),
+        auth: _auth,
+        mode: SetupWizardMode.fresh,
+        onFinished: _onSetupFinished,
       );
     }
 
-    return UnlockPage(
+    if (!_auth.isUnlocked) {
+      return UnlockPage(
+        auth: _auth,
+        mode: UnlockMode.unlock,
+        onUnlocked: _onUnlocked,
+      );
+    }
+
+    if (_needsPrimary) {
+      return SetupWizardPage(
+        key: const Key('setup_wizard_primary_only'),
+        auth: _auth,
+        mode: SetupWizardMode.primaryOnly,
+        onFinished: _onSetupFinished,
+      );
+    }
+
+    return AppShell(
       auth: _auth,
-      mode: _vaultExists ? UnlockMode.unlock : UnlockMode.create,
-      onUnlocked: _onUnlocked,
+      onLock: _lock,
+      helloEnabled: _helloEnabled,
+      helloAvailable: _helloAvailable,
+      onToggleHello: (enable) async {
+        if (enable) {
+          await _auth.enableHelloUnlock();
+        } else {
+          await _auth.disableHelloUnlock();
+        }
+        await _refreshHelloFlags();
+      },
     );
   }
 }

@@ -4,9 +4,19 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-23
+
 ### Added
 
-- Planned audit/activity log (schema v2, phase 0.7+) in `docs/PLAN.md`
+- Phase 0.5 setup wizard (location, security, primary checking + opening balance)
+- Browse dialog for vault file path; auto-create missing parent folders
+- Open existing vault or true overwrite when path already has a database
+- Planned: open/switch to a different vault database (F-0.5b)
+
+### Fixed
+
+- Wizard opens the shell after creating a vault (was stuck until relaunch)
+- Creating a vault in a new folder no longer fails on missing `.meta.json` path
 
 ## [0.4.0] — 2026-07-23
 

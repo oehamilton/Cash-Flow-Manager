@@ -49,6 +49,7 @@ app.*.map.json
 *.cfm.db-*
 *.cfm.lock
 *.cfm.db.meta.json
+active_vault_path.txt
 *.pre-v*.bak
 *.sqlite
 *.sqlite3

@@ -5,6 +5,7 @@ import '../data/database_session.dart';
 import 'biometric_auth.dart';
 import 'password_kdf.dart';
 import 'secure_store.dart';
+import 'vault_files.dart';
 import 'vault_meta.dart';
 import 'vault_paths.dart';
 
@@ -19,7 +20,7 @@ class AuthService {
         _biometric = biometricAuth ?? LocalBiometricAuth(),
         _kdf = kdf ?? PasswordKdf(),
         _resolveDatabasePath =
-            resolveDatabasePath ?? VaultPaths.defaultDatabasePath;
+            resolveDatabasePath ?? VaultPaths.activeDatabasePath;
 
   static const _helloPassphraseKey = 'cfm_hello_db_passphrase';
 
@@ -38,10 +39,13 @@ class AuthService {
 
   Future<bool> vaultExists() async {
     final path = await databasePath();
-    final dbExists = await File(path).exists();
-    final meta = await VaultMeta.load(path);
-    return dbExists && meta != null;
+    return vaultExistsAt(path);
   }
+
+  Future<bool> vaultExistsAt(String path) => VaultFiles.isComplete(path);
+
+  Future<VaultPresence> vaultPresenceAt(String path) =>
+      VaultFiles.presence(path);
 
   Future<bool> isHelloEnabled() async {
     final path = await databasePath();
@@ -56,19 +60,35 @@ class AuthService {
   }
 
   /// First-time vault creation (full account wizard is Phase 0.5).
+  ///
+  /// When [databasePath] is provided, that file is used (parent folders are
+  /// created). Otherwise the active path from [VaultPaths] is used.
+  ///
+  /// When [overwrite] is true, an existing vault at the path is deleted first.
   Future<DatabaseSession> createVault({
     required String password,
+    String? databasePath,
     bool enableHello = false,
     bool forceUnlock = false,
+    bool overwrite = false,
   }) async {
     if (password.length < 8) {
       throw AuthException('Password must be at least 8 characters');
     }
-    if (await vaultExists()) {
-      throw AuthException('A vault already exists');
+
+    final path = databasePath ?? await this.databasePath();
+    await VaultPaths.ensureParentDirectory(path);
+
+    final presence = await VaultFiles.presence(path);
+    if (presence != VaultPresence.none) {
+      if (!overwrite) {
+        throw AuthException(
+          'A vault already exists at this path. Open it or choose overwrite.',
+        );
+      }
+      await VaultFiles.deleteVault(path);
     }
 
-    final path = await databasePath();
     final salt = _kdf.generateSalt();
     final passphrase = await _kdf.derivePassphrase(
       password: password,
@@ -99,9 +119,10 @@ class AuthService {
 
   Future<DatabaseSession> unlockWithPassword({
     required String password,
+    String? databasePath,
     bool forceUnlock = false,
   }) async {
-    final path = await databasePath();
+    final path = databasePath ?? await this.databasePath();
     final meta = await VaultMeta.load(path);
     if (meta == null || !await File(path).exists()) {
       throw AuthException('No vault found. Create a password to get started.');

@@ -187,17 +187,26 @@ class _UnlockPageState extends State<UnlockPage> {
                       controller: _passwordController,
                       obscureText: _obscure,
                       enabled: !_busy,
+                      textInputAction: isCreate
+                          ? TextInputAction.next
+                          : TextInputAction.done,
                       decoration: InputDecoration(
                         labelText: 'Password',
                         filled: true,
                         fillColor: AppColors.surface.withValues(alpha: 0.7),
-                        suffixIcon: IconButton(
-                          onPressed: () =>
-                              setState(() => _obscure = !_obscure),
-                          icon: Icon(
-                            _obscure
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
+                        suffixIcon: ExcludeFocus(
+                          child: IconButton(
+                            key: const Key('toggle_password_visibility'),
+                            tooltip: _obscure
+                                ? 'Show password'
+                                : 'Hide password',
+                            onPressed: () =>
+                                setState(() => _obscure = !_obscure),
+                            icon: Icon(
+                              _obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                            ),
                           ),
                         ),
                       ),
