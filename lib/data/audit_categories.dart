@@ -16,6 +16,10 @@ abstract final class AuditAction {
   static const forceUnlock = 'force_unlock';
   static const helloEnable = 'hello_enable';
   static const helloDisable = 'hello_disable';
+  static const create = 'create';
+  static const update = 'update';
+  static const delete = 'delete';
+  static const archive = 'archive';
 }
 
 abstract final class AuditEntityType {
