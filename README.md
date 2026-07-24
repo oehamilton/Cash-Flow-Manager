@@ -2,7 +2,7 @@
 
 Local-first bank register and short-horizon cash flow forecaster for Windows 11 (Android later). Built with Flutter; data stored in a user-selectable encrypted SQLite database.
 
-**Current version:** 1.4.0 (Phase 1 complete — open register)
+**Current version:** 2.1.0 (Phase 2.1 transaction CRUD)
 
 Data files use SQLite3MultipleCiphers encryption (`hooks.sqlite3.source: sqlite3mc`). Never commit `*.cfm.db` or `*.cfm.lock` files.
 

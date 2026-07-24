@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-07-24
+
+### Added
+
+- Phase 2.1 transaction CRUD on Register with payee autocomplete and audit writes
+
 ## [1.4.0] — 2026-07-24
 
 ### Added
