@@ -73,6 +73,45 @@ ORDER BY is_primary DESC, name COLLATE NOCASE ASC, id ASC
     return rows.map(Account.fromRow).toList();
   }
 
+  /// Cleared + uncleared ledger total (includes opening-balance row).
+  int balanceCents(String accountId) {
+    final row = _db.select(
+      '''
+SELECT COALESCE(SUM(amount_cents), 0) AS balance
+FROM transactions
+WHERE account_id = ?
+''',
+      [accountId],
+    ).first;
+    return row['balance'] as int;
+  }
+
+  List<AccountSummary> listSummaries({
+    bool includeArchived = false,
+    bool debtsOnly = false,
+  }) {
+    var accounts = listAccounts(includeArchived: includeArchived);
+    if (debtsOnly) {
+      accounts = accounts.where((a) => a.includeInDebtList).toList();
+      accounts.sort((a, b) {
+        final balA = balanceCents(a.id);
+        final balB = balanceCents(b.id);
+        final byBalance = balA.compareTo(balB); // most negative (owed) first
+        if (byBalance != 0) {
+          return byBalance;
+        }
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+    }
+    return [
+      for (final account in accounts)
+        AccountSummary(
+          account: account,
+          balanceCents: balanceCents(account.id),
+        ),
+    ];
+  }
+
   /// Creates the primary checking account and an opening-balance transaction.
   ///
   /// Fails if a primary already exists (use [setPrimary] / [create] to transfer).

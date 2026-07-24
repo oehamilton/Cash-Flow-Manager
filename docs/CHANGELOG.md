@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-07-24
+
+### Added
+
+- Phase 1.2 Accounts list and Debts list (balance / APR / min payment) with Add account
+
 ## [1.1.0] — 2026-07-23
 
 ### Added

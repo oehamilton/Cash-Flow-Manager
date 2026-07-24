@@ -21,9 +21,7 @@ void main() {
     expect(find.byKey(const Key('page_register')), findsOneWidget);
   });
 
-  testWidgets('Navigating to Accounts shows accounts placeholder', (
-    tester,
-  ) async {
+  testWidgets('Navigating to Accounts shows accounts page', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: AppShell()),
     );
@@ -32,7 +30,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('page_accounts')), findsOneWidget);
-    expect(find.textContaining('Phase 1'), findsOneWidget);
+    expect(find.byKey(const Key('accounts_add_button')), findsOneWidget);
   });
 
   testWidgets('Settings shows lock control', (tester) async {

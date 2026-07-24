@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../auth/auth_service.dart';
 import '../core/app_info.dart';
 import '../data/account_repository.dart';
+import '../features/accounts/accounts_page.dart';
+import '../features/accounts/debts_page.dart';
 import '../features/placeholders/placeholder_page.dart';
 import '../features/settings/settings_page.dart';
 import '../theme/app_colors.dart';
@@ -140,19 +142,13 @@ class _AppShellState extends State<AppShell> {
               : 'Primary checking “$_primaryName” is ready. Transaction entry arrives in Phase 2.',
           phaseHint: '// phase 2 — transactions, clear, running balance',
         ),
-      AppDestination.accounts => const PlaceholderPage(
-          key: Key('page_accounts'),
-          title: 'Accounts',
-          subtitle:
-              'Manage checking, income, and debt accounts. CRUD arrives in Phase 1.',
-          phaseHint: '// phase 1 — account list and detail',
+      AppDestination.accounts => AccountsPage(
+          key: const Key('page_accounts'),
+          auth: widget.auth,
         ),
-      AppDestination.debts => const PlaceholderPage(
-          key: Key('page_debts'),
-          title: 'Debts',
-          subtitle:
-              'Balances, APR, and payments at a glance. List view arrives in Phase 1.',
-          phaseHint: '// phase 1.2 — debt list',
+      AppDestination.debts => DebtsPage(
+          key: const Key('page_debts'),
+          auth: widget.auth,
         ),
       AppDestination.settings => SettingsPage(
           key: const Key('page_settings'),

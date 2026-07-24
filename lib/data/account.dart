@@ -81,6 +81,17 @@ class Account {
   }
 }
 
+/// Account plus computed register balance for list views.
+class AccountSummary {
+  const AccountSummary({
+    required this.account,
+    required this.balanceCents,
+  });
+
+  final Account account;
+  final int balanceCents;
+}
+
 /// Fields required to create an account (Phase 1.1).
 class AccountDraft {
   const AccountDraft({
