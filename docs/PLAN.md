@@ -174,6 +174,21 @@ transactions(
 -- Optional helper for charts / payoff (can be computed from transactions; table only if caching needed)
 -- balance_snapshots deferred; derive from transactions for v1
 
+-- Schema v2: append-only activity / audit trail (access + data changes)
+audit_log(
+  id TEXT PRIMARY KEY,
+  at TEXT NOT NULL,                 -- ISO-8601 UTC
+  category TEXT NOT NULL,           -- access | account | transaction | settings | system
+  action TEXT NOT NULL,             -- unlock_password | unlock_hello | unlock_failed | lock |
+                                    -- force_unlock | create_vault | create | update | delete | clear | etc.
+  entity_type TEXT,                 -- account | transaction | recurrence_rule | vault | null
+  entity_id TEXT,
+  summary TEXT NOT NULL,            -- short human-readable line
+  detail_json TEXT,                 -- optional before/after or context (no raw passwords)
+  machine_name TEXT,
+  app_version TEXT
+);
+
 lock_meta is NOT in DB — filesystem .cfm.lock beside the db file.
 ```
 
@@ -181,7 +196,9 @@ lock_meta is NOT in DB — filesystem .cfm.lock beside the db file.
 
 **Sign convention:** each register is account-centric (payment on a credit card register reduces balance owed — document UI so “payment” is intuitive per account type).
 
-**Indexes:** `(account_id, date, id)`, `(account_id, is_cleared)`, `(recurrence_rule_id)`.
+**Indexes:** `(account_id, date, id)`, `(account_id, is_cleared)`, `(recurrence_rule_id)`, `audit_log(at)`, `audit_log(category, at)`.
+
+**Audit log rules:** append-only (no user edit/delete in v1); never store plaintext passwords or DB keys; failed unlocks logged without the attempted password; Settings provides a read-only Activity log viewer (Phase 5.1).
 
 ## First-time setup wizard
 
@@ -361,6 +378,7 @@ Worth deciding now so they don’t surprise us mid-build:
 | **Demo/sample dataset** | Optional toggle for your testing | Phase **0.6** or **5** |
 | **App version in UI + about** | Include | Phase **0.1** / Settings |
 | **Virtualized long register** | Build list with lazy loading from the start | Phase **2** |
+| **Audit / activity log** | Include — access + data-change trail for later review | Schema **v2** in **0.7**; writers in 1.x/2.x; viewer in **5.1** |
 
 ## Phases and subphases
 
@@ -372,19 +390,20 @@ Worth deciding now so they don’t surprise us mid-build:
 - **0.4** Password set/unlock + Windows Hello hookup
 - **0.5** First-run wizard → primary checking + opening balance; default route = Register
 - **0.6** Test harness baseline (sample unit test + CI-ready `flutter test`)
-- **Exit:** wizard creates encrypted DB; unlock works; lock prevents second writer; tests green; theme direction accepted
+- **0.7** Audit log foundation — schema v2 `audit_log` table; log access events (vault create, unlock password/Hello, unlock failed, lock, force unlock, Hello enable/disable); no UI viewer yet
+- **Exit:** wizard creates encrypted DB; unlock works; lock prevents second writer; access events land in `audit_log`; tests green; theme direction accepted
 
 ### Phase 1 — Accounts
-- **1.1** Account CRUD (all types) + primary flag rules
+- **1.1** Account CRUD (all types) + primary flag rules (**write audit_log** on create/update/delete)
 - **1.2** Accounts list + debt list (balance, APR, payment) — **structure feedback welcome**
 - **1.3** Account info screen (metadata/credentials) — **structure feedback welcome**
 - **1.4** Navigate: open Register for selected account; cold start opens primary
 - **Exit:** manage accounts; open any register; sensitive fields only in ciphertext file
 
 ### Phase 2 — Register core
-- **2.1** Transaction CRUD scoped by `account_id` (+ payee autocomplete from history)
+- **2.1** Transaction CRUD scoped by `account_id` (+ payee autocomplete from history) (**write audit_log** on create/update/delete)
 - **2.2** Running balance column + ordering (lazy/virtualized list from the start)
-- **2.3** Clear / reconcile; protect cleared edits; **statement ending-balance reconcile**
+- **2.3** Clear / reconcile; protect cleared edits; **statement ending-balance reconcile** (**audit** clear/unclear / reconcile)
 - **2.4** Sticky header: reconciled + today (trough placeholders) — **register layout gate**
 - **2.5** Row styles: cleared vs uncleared
 - **2.6** *(optional)* Register UI pass + light search/filter + keyboard entry polish
@@ -406,9 +425,9 @@ Worth deciding now so they don’t surprise us mid-build:
 - **Exit:** supporting accounts help payoff decisions
 
 ### Phase 5 — Polish & ship
-- **5.1** Validation, empty states, confirmations, idle lock, **final visual polish**
+- **5.1** Validation, empty states, confirmations, idle lock, **Activity log viewer** (read-only `audit_log` in Settings), **final visual polish**
 - **5.2** Backup/export encrypted DB (+ optional CSV register export)
-- **5.3** Windows release build (exe/MSIX; MSI if required)
+- **5.3** Windows release build (exe/MSIX; MSI if required) — prefer **x64** build on Intel/AMD host; optional native ARM64 build on ARM host (see [`DEPENDENCIES.md`](DEPENDENCIES.md))
 - **5.4** Full regression pass + manual Windows 11 checklist
 - **Exit:** daily-driver installable build
 

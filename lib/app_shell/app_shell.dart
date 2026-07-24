@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/app_info.dart';
 import '../features/placeholders/placeholder_page.dart';
+import '../features/settings/settings_page.dart';
 import '../theme/app_colors.dart';
 import 'app_destination.dart';
 
@@ -10,9 +11,17 @@ class AppShell extends StatefulWidget {
   const AppShell({
     super.key,
     this.initialDestination = AppDestination.register,
+    this.onLock,
+    this.helloEnabled = false,
+    this.helloAvailable = false,
+    this.onToggleHello,
   });
 
   final AppDestination initialDestination;
+  final Future<void> Function()? onLock;
+  final bool helloEnabled;
+  final bool helloAvailable;
+  final Future<void> Function(bool enable)? onToggleHello;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -103,13 +112,12 @@ class _AppShellState extends State<AppShell> {
               'Balances, APR, and payments at a glance. List view arrives in Phase 1.',
           phaseHint: '// phase 1.2 — debt list',
         ),
-      AppDestination.settings => const PlaceholderPage(
-          key: Key('page_settings'),
-          title: 'Settings',
-          subtitle:
-              'Encrypted DB layer is ready (Phase 0.3). Path picker, unlock UI, '
-              'and horizon settings wire up next.',
-          phaseHint: '// phase 0.4–0.5 — unlock, wizard, db path UI',
+      AppDestination.settings => SettingsPage(
+          key: const Key('page_settings'),
+          helloEnabled: widget.helloEnabled,
+          helloAvailable: widget.helloAvailable,
+          onLock: widget.onLock ?? () async {},
+          onToggleHello: widget.onToggleHello ?? (_) async {},
         ),
     };
   }

@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- Planned audit/activity log (schema v2, phase 0.7+) in `docs/PLAN.md`
+
+## [0.4.0] — 2026-07-23
+
+### Added
+
+- App password unlock, Windows Hello opt-in, lock from Settings
+- Windows Credential Manager secrets via `win32` (avoids JNI on ARM64)
+- `docs/DEPENDENCIES.md` machine setup and Intel/ARM build notes
+
 ## [0.3.0] — 2026-07-23
 
 ### Added
