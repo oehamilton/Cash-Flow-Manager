@@ -49,6 +49,7 @@ class VaultMeta {
 
   Future<void> save(String databasePath) async {
     final file = File(pathForDatabase(databasePath));
+    await file.parent.create(recursive: true);
     await file.writeAsString(const JsonEncoder.withIndent('  ').convert(toJson()));
   }
 }

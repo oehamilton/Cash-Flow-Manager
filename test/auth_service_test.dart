@@ -43,6 +43,31 @@ void main() {
     expect(auth.isUnlocked, isTrue);
   });
 
+  test('createVault creates missing parent folders', () async {
+    final nestedPath = p.join(tempDir.path, 'new', 'nested', 'vault.cfm.db');
+    await auth.createVault(
+      password: 'password123',
+      databasePath: nestedPath,
+    );
+    expect(await File(nestedPath).exists(), isTrue);
+    expect(await File('$nestedPath.meta.json').exists(), isTrue);
+  });
+
+  test('createVault overwrite replaces an existing vault', () async {
+    await auth.createVault(password: 'password123');
+    await auth.lock();
+
+    await auth.createVault(password: 'replacement1', overwrite: true);
+    await auth.lock();
+
+    await expectLater(
+      auth.unlockWithPassword(password: 'password123'),
+      throwsA(isA<AuthException>()),
+    );
+    await auth.unlockWithPassword(password: 'replacement1');
+    expect(auth.isUnlocked, isTrue);
+  });
+
   test('wrong password fails', () async {
     await auth.createVault(password: 'password123');
     await auth.lock();

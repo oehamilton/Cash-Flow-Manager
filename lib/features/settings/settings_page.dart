@@ -12,10 +12,12 @@ class SettingsPage extends StatefulWidget {
     required this.helloAvailable,
     required this.onLock,
     required this.onToggleHello,
+    this.databasePath,
   });
 
   final bool helloEnabled;
   final bool helloAvailable;
+  final String? databasePath;
   final Future<void> Function() onLock;
   final Future<void> Function(bool enable) onToggleHello;
 
@@ -69,7 +71,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Text('Settings', style: textTheme.headlineMedium),
             const SizedBox(height: 8),
             Text(
-              'Security controls for this session. Database path picker arrives in Phase 0.5.',
+              'Security and vault location for this installation.',
               style: textTheme.bodyLarge,
             ),
             const SizedBox(height: 24),
@@ -80,6 +82,21 @@ class _SettingsPageState extends State<SettingsPage> {
                 color: AppColors.primaryBright,
               ),
             ),
+            if (widget.databasePath != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Vault',
+                style: textTheme.titleMedium,
+              ),
+              const SizedBox(height: 4),
+              SelectableText(
+                widget.databasePath!,
+                key: const Key('settings_db_path'),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontFamily: AppTheme.monoFont,
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             SwitchListTile(
               key: const Key('hello_toggle'),

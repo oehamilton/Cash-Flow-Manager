@@ -343,6 +343,7 @@ Playwright targets web browsers; this is a Flutter desktop app. Same intent — 
 - Wizard must state: **forgotten app password = data unrecoverable** (no backdoor)
 - Before schema migrations that rewrite data: auto-copy backup beside DB (e.g. `*.pre-vN.bak`)
 - Document “moved DB file” recovery: point Settings / open-dialog at new path
+- **Open a different vault:** Settings (or unlock-screen action) to choose another `.cfm.db` path and unlock it — tracked as **F-0.5b** (after first-run wizard; before or with Phase 5 polish)
 - Recommend periodic encrypted backup (Phase 5.2); mention in README early
 
 **Calendar / money conventions (lock early)**
@@ -389,6 +390,7 @@ Worth deciding now so they don’t surprise us mid-build:
 - **0.3** SQLCipher create/open, schema v1 migration, exclusive lock file
 - **0.4** Password set/unlock + Windows Hello hookup
 - **0.5** First-run wizard → primary checking + opening balance; default route = Register
+- **0.5b** *(later)* Open / switch active vault to a different database file path
 - **0.6** Test harness baseline (sample unit test + CI-ready `flutter test`)
 - **0.7** Audit log foundation — schema v2 `audit_log` table; log access events (vault create, unlock password/Hello, unlock failed, lock, force unlock, Hello enable/disable); no UI viewer yet
 - **Exit:** wizard creates encrypted DB; unlock works; lock prevents second writer; access events land in `audit_log`; tests green; theme direction accepted

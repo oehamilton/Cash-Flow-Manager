@@ -2,14 +2,25 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'vault_location_store.dart';
+
 /// Resolves the default encrypted vault location.
 class VaultPaths {
   static const String defaultFileName = 'vault.cfm.db';
   static const String appFolderName = 'CashFlowManager';
 
+  /// Active vault path (saved preference) or default under AppData.
+  static Future<String> activeDatabasePath() async {
+    final saved = await VaultLocationStore.load();
+    if (saved != null && saved.isNotEmpty) {
+      return p.normalize(saved);
+    }
+    return defaultDatabasePath();
+  }
+
   /// `%AppData%/CashFlowManager/vault.cfm.db` on Windows.
   static Future<String> defaultDatabasePath() async {
-    final root = _appDataRoot();
+    final root = appDataRoot();
     final dir = Directory(p.join(root, appFolderName));
     if (!await dir.exists()) {
       await dir.create(recursive: true);
@@ -17,7 +28,20 @@ class VaultPaths {
     return p.join(dir.path, defaultFileName);
   }
 
-  static String _appDataRoot() {
+  /// Build a vault file path inside [directory].
+  static String databasePathInDirectory(String directory) {
+    return p.join(p.normalize(directory), defaultFileName);
+  }
+
+  /// Creates parent folders for [databasePath] when missing.
+  static Future<void> ensureParentDirectory(String databasePath) async {
+    final parent = Directory(p.dirname(p.normalize(databasePath)));
+    if (!await parent.exists()) {
+      await parent.create(recursive: true);
+    }
+  }
+
+  static String appDataRoot() {
     if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'];
       if (appData != null && appData.isNotEmpty) {

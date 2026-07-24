@@ -24,6 +24,7 @@ What to install when coding or building Cash Flow Manager on a **new Windows mac
 - Secrets: `win32` Credential Manager (no Java/JNI)
 - Biometrics: `local_auth` / `local_auth_windows`
 - Paths: `%APPDATA%\CashFlowManager\` (no `path_provider` on Windows for now)
+- File browse: `file_selector` / `file_selector_windows` (native dialog; no JNI)
 
 ## Required installs (Windows desktop development)
 
