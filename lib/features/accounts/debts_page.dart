@@ -10,9 +10,14 @@ import 'account_info_page.dart';
 
 /// Debt-focused list: balance, APR, and payment (Phase 1.2).
 class DebtsPage extends StatefulWidget {
-  const DebtsPage({super.key, required this.auth});
+  const DebtsPage({
+    super.key,
+    required this.auth,
+    this.onOpenRegister,
+  });
 
   final AuthService? auth;
+  final ValueChanged<String>? onOpenRegister;
 
   @override
   State<DebtsPage> createState() => _DebtsPageState();
@@ -74,6 +79,12 @@ class _DebtsPageState extends State<DebtsPage> {
         accountId: _selectedAccountId!,
         onClose: () => setState(() => _selectedAccountId = null),
         onChanged: _reload,
+        onOpenRegister: widget.onOpenRegister == null
+            ? null
+            : (accountId) {
+                setState(() => _selectedAccountId = null);
+                widget.onOpenRegister!(accountId);
+              },
       );
     }
 

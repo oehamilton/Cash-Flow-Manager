@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-07-24
+
+### Added
+
+- Phase 1.4 open Register for any account; cold start opens primary checking
+
 ## [1.3.0] — 2026-07-24
 
 ### Added
