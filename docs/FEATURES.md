@@ -7,7 +7,7 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | ID | Feature | Phase | Status | Tests |
 |----|---------|-------|--------|-------|
 | F-0.1 | Flutter Windows scaffold, analysis, gitignore, README, feature tracker, app version on home | 0.1 | `done` | `test/app_info_test.dart`, `test/widget_test.dart` |
-| F-0.2 | Theme tokens + app shell navigation (UI direction gate) | 0.2 | `planned` | |
+| F-0.2 | Theme tokens + app shell navigation (UI direction gate) | 0.2 | `done` | `test/widget_test.dart`, `test/app_destination_test.dart` |
 | F-0.2b | Optional theme revision | 0.2b | `deferred` | |
 | F-0.3 | SQLCipher DB, schema v1, exclusive lock file | 0.3 | `planned` | |
 | F-0.4 | App password unlock + Windows Hello | 0.4 | `planned` | |
