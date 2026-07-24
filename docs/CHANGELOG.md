@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-07-24
+
+### Added
+
+- Phase 2.5 cleared vs uncleared register row styles (future-date preview tint)
+
 ## [2.4.0] — 2026-07-24
 
 ### Added

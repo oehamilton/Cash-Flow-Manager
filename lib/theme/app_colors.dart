@@ -15,7 +15,7 @@ abstract final class AppColors {
   static const Color danger = Color(0xFFE07A6A);
   static const Color warning = Color(0xFFD4A84B);
 
-  /// Register row accents (used fully in Phase 3; tokens locked in 0.2).
+  /// Register row accents (Phase 2.5 cleared/uncleared; Phase 3.3 forecast).
   static const Color rowCleared = Color(0xFF1A3A32);
   static const Color rowUnclearedPast = Color(0xFF12282C);
   static const Color rowAutoFuture = Color(0xFF16384A);

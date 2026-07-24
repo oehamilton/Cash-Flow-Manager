@@ -10,6 +10,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'reconcile_dialog.dart';
 import 'register_metrics_bar.dart';
+import 'register_row_style.dart';
 import 'transaction_editor_dialog.dart';
 
 /// Register surface: sticky metrics header + ledger (Phase 2.4 layout gate).
@@ -426,127 +427,164 @@ class _RegisterLedgerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final tx = entry.transaction;
+    final style = RegisterRowStyle.forTransaction(tx);
     final payeeLabel =
         tx.payee == null || tx.payee!.isEmpty ? '(no payee)' : tx.payee!;
-    final mono = textTheme.bodyMedium?.copyWith(fontFamily: AppTheme.monoFont);
+    final foreground =
+        style.mutedForeground ? AppColors.onSurfaceMuted : AppColors.onSurface;
+    final mono = textTheme.bodyMedium?.copyWith(
+      fontFamily: AppTheme.monoFont,
+      color: foreground,
+    );
     final debit = entry.debitCents;
     final credit = entry.creditCents;
     final balance = entry.runningBalanceCents;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return ColoredBox(
+      key: Key('register_tx_style_${tx.id}'),
+      color: style.background,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(color: style.accent, width: 3),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(
-                width: 40,
-                child: Checkbox(
-                  key: Key('register_tx_clear_${tx.id}'),
-                  value: tx.isCleared,
-                  onChanged: onClearedChanged == null
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            onClearedChanged!(value);
-                          }
-                        },
-                ),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 40,
+                    child: Checkbox(
+                      key: Key('register_tx_clear_${tx.id}'),
+                      value: tx.isCleared,
+                      onChanged: onClearedChanged == null
+                          ? null
+                          : (value) {
+                              if (value != null) {
+                                onClearedChanged!(value);
+                              }
+                            },
+                    ),
+                  ),
+                  SizedBox(
+                    width: 96,
+                    child: Text(dateLabel, style: mono),
+                  ),
+                  Expanded(
+                    child: Text(
+                      payeeLabel,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodyMedium?.copyWith(color: foreground),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 88,
+                    child: Text(
+                      debit == null ? '' : formatCents(debit),
+                      textAlign: TextAlign.end,
+                      style: mono?.copyWith(
+                        color: debit == null
+                            ? foreground
+                            : (style.mutedForeground
+                                ? AppColors.onSurfaceMuted
+                                : AppColors.danger),
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 88,
+                    child: Text(
+                      credit == null ? '' : formatCents(credit),
+                      textAlign: TextAlign.end,
+                      style: mono,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 96,
+                    child: Text(
+                      formatCents(balance),
+                      key: Key('register_tx_balance_${tx.id}'),
+                      textAlign: TextAlign.end,
+                      style: mono?.copyWith(
+                        color: balance < 0
+                            ? (style.mutedForeground
+                                ? AppColors.onSurfaceMuted
+                                : AppColors.danger)
+                            : foreground,
+                      ),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 88,
+                    child: onEdit == null && onDelete == null
+                        ? const SizedBox.shrink()
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (onEdit != null)
+                                IconButton(
+                                  key: Key('register_tx_edit_${tx.id}'),
+                                  tooltip: 'Edit',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: onEdit,
+                                  icon: const Icon(
+                                    Icons.edit_outlined,
+                                    size: 18,
+                                  ),
+                                ),
+                              if (onDelete != null)
+                                IconButton(
+                                  key: Key('register_tx_delete_${tx.id}'),
+                                  tooltip: 'Delete',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: onDelete,
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                  ),
+                                ),
+                            ],
+                          ),
+                  ),
+                ],
               ),
-              SizedBox(
-                width: 96,
-                child: Text(dateLabel, style: mono),
-              ),
-              Expanded(
-                child: Text(payeeLabel, overflow: TextOverflow.ellipsis),
-              ),
-              SizedBox(
-                width: 88,
-                child: Text(
-                  debit == null ? '' : formatCents(debit),
-                  textAlign: TextAlign.end,
-                  style: mono?.copyWith(color: AppColors.danger),
-                ),
-              ),
-              SizedBox(
-                width: 88,
-                child: Text(
-                  credit == null ? '' : formatCents(credit),
-                  textAlign: TextAlign.end,
-                  style: mono,
-                ),
-              ),
-              SizedBox(
-                width: 96,
-                child: Text(
-                  formatCents(balance),
-                  key: Key('register_tx_balance_${tx.id}'),
-                  textAlign: TextAlign.end,
-                  style: mono?.copyWith(
-                    color: balance < 0 ? AppColors.danger : AppColors.onSurface,
+              if (tx.memo != null && tx.memo!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 136, top: 2),
+                  child: Text(
+                    tx.memo!,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                    ),
+                  ),
+                )
+              else if (tx.isOpeningBalance)
+                Padding(
+                  padding: const EdgeInsets.only(left: 136, top: 2),
+                  child: Text(
+                    'Opening balance',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                    ),
+                  ),
+                )
+              else if (tx.isCleared)
+                Padding(
+                  padding: const EdgeInsets.only(left: 136, top: 2),
+                  child: Text(
+                    'Cleared — unclear to edit',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceMuted,
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(
-                width: 88,
-                child: onEdit == null && onDelete == null
-                    ? const SizedBox.shrink()
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (onEdit != null)
-                            IconButton(
-                              key: Key('register_tx_edit_${tx.id}'),
-                              tooltip: 'Edit',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: onEdit,
-                              icon: const Icon(Icons.edit_outlined, size: 18),
-                            ),
-                          if (onDelete != null)
-                            IconButton(
-                              key: Key('register_tx_delete_${tx.id}'),
-                              tooltip: 'Delete',
-                              visualDensity: VisualDensity.compact,
-                              onPressed: onDelete,
-                              icon: const Icon(Icons.delete_outline, size: 18),
-                            ),
-                        ],
-                      ),
-              ),
             ],
           ),
-          if (tx.memo != null && tx.memo!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(left: 136, top: 2),
-              child: Text(
-                tx.memo!,
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                ),
-              ),
-            )
-          else if (tx.isOpeningBalance)
-            Padding(
-              padding: const EdgeInsets.only(left: 136, top: 2),
-              child: Text(
-                'Opening balance',
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                ),
-              ),
-            )
-          else if (tx.isCleared)
-            Padding(
-              padding: const EdgeInsets.only(left: 136, top: 2),
-              child: Text(
-                'Cleared — unclear to edit',
-                style: textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                ),
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }
