@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../auth/auth_service.dart';
 import '../core/app_info.dart';
 import '../data/account_repository.dart';
+import '../data/app_settings_repository.dart';
 import '../features/accounts/accounts_page.dart';
 import '../features/accounts/debts_page.dart';
 import '../features/register/register_page.dart';
+import '../features/settings/idle_lock_controller.dart';
 import '../features/settings/settings_page.dart';
 import '../theme/app_colors.dart';
 import 'app_destination.dart';
@@ -41,13 +44,27 @@ class _AppShellState extends State<AppShell> {
   late AppDestination _destination;
   String? _registerAccountId;
   String? _databasePath;
+  int _lockTimeoutMinutes = 15;
+  late final IdleLockController _idleLock;
 
   @override
   void initState() {
     super.initState();
     _destination = widget.initialDestination;
     _registerAccountId = widget.initialRegisterAccountId;
+    _idleLock = IdleLockController(
+      onIdle: () {
+        // Ignore async result; lock is fire-and-forget from idle timer.
+        widget.onLock?.call();
+      },
+    );
     _loadAccountContext();
+  }
+
+  @override
+  void dispose() {
+    _idleLock.dispose();
+    super.dispose();
   }
 
   @override
@@ -66,16 +83,22 @@ class _AppShellState extends State<AppShell> {
     final auth = widget.auth;
     String? path;
     String? registerId = _registerAccountId;
+    var lockMinutes = 15;
     if (auth?.session != null) {
-      final repo = AccountRepository(auth!.session!);
+      final session = auth!.session!;
+      final repo = AccountRepository(session);
       final primaryId = repo.primaryAccountId();
       registerId ??= primaryId;
       if (registerId != null && repo.getById(registerId) == null) {
         registerId = primaryId;
       }
       path = await auth.databasePath();
+      lockMinutes = AppSettingsRepository(session).lockTimeoutMinutes();
+      _idleLock.updateTimeout(lockMinutes);
+      _idleLock.arm();
     } else {
       registerId = null;
+      _idleLock.disarm();
     }
     // Skip if Open register (or a newer load) won the race during await.
     if (!mounted || generation != _loadGeneration) {
@@ -84,6 +107,7 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _registerAccountId = registerId;
       _databasePath = path;
+      _lockTimeoutMinutes = lockMinutes;
     });
   }
 
@@ -95,71 +119,90 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  void _noteActivity() {
+    _idleLock.noteActivity();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Row(
-        children: [
-          NavigationRail(
-            key: const Key('app_nav_rail'),
-            selectedIndex: _destination.index,
-            onDestinationSelected: (index) {
-              setState(() {
-                _destination = AppDestination.values[index];
-                // Rail → Register keeps the current account, or falls back
-                // to primary on first open / missing account.
-                if (_destination == AppDestination.register &&
-                    widget.auth?.session != null) {
-                  final repo = AccountRepository(widget.auth!.session!);
-                  if (_registerAccountId == null ||
-                      repo.getById(_registerAccountId!) == null) {
-                    _registerAccountId = repo.primaryAccountId();
-                  }
-                }
-              });
-            },
-            labelType: NavigationRailLabelType.all,
-            leading: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
-              child: Column(
-                children: [
-                  Text(
-                    'CFM',
-                    key: const Key('app_shell_brand'),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.primaryBright,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 2,
-                        ),
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent) {
+          _noteActivity();
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => _noteActivity(),
+        onPointerSignal: (_) => _noteActivity(),
+        child: Scaffold(
+          body: Row(
+            children: [
+              NavigationRail(
+                key: const Key('app_nav_rail'),
+                selectedIndex: _destination.index,
+                onDestinationSelected: (index) {
+                  _noteActivity();
+                  setState(() {
+                    _destination = AppDestination.values[index];
+                    // Rail → Register keeps the current account, or falls back
+                    // to primary on first open / missing account.
+                    if (_destination == AppDestination.register &&
+                        widget.auth?.session != null) {
+                      final repo = AccountRepository(widget.auth!.session!);
+                      if (_registerAccountId == null ||
+                          repo.getById(_registerAccountId!) == null) {
+                        _registerAccountId = repo.primaryAccountId();
+                      }
+                    }
+                  });
+                },
+                labelType: NavigationRailLabelType.all,
+                leading: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
+                  child: Column(
+                    children: [
+                      Text(
+                        'CFM',
+                        key: const Key('app_shell_brand'),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              color: AppColors.primaryBright,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 2,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppInfo.versionLabel,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceMuted,
+                              fontSize: 11,
+                            ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    AppInfo.versionLabel,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceMuted,
-                          fontSize: 11,
-                        ),
-                  ),
+                ),
+                destinations: [
+                  for (final dest in AppDestination.values)
+                    NavigationRailDestination(
+                      icon: Icon(dest.icon),
+                      selectedIcon: Icon(dest.selectedIcon),
+                      label: Text(dest.label),
+                    ),
                 ],
               ),
-            ),
-            destinations: [
-              for (final dest in AppDestination.values)
-                NavigationRailDestination(
-                  icon: Icon(dest.icon),
-                  selectedIcon: Icon(dest.selectedIcon),
-                  label: Text(dest.label),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: KeyedSubtree(
+                  key: Key('destination_${_destination.name}'),
+                  child: _pageFor(_destination),
                 ),
+              ),
             ],
           ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: KeyedSubtree(
-              key: Key('destination_${_destination.name}'),
-              child: _pageFor(_destination),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -183,11 +226,20 @@ class _AppShellState extends State<AppShell> {
         ),
       AppDestination.settings => SettingsPage(
           key: const Key('page_settings'),
+          auth: widget.auth,
           helloEnabled: widget.helloEnabled,
           helloAvailable: widget.helloAvailable,
           databasePath: _databasePath,
+          lockTimeoutMinutes: _lockTimeoutMinutes,
           onLock: widget.onLock ?? () async {},
           onToggleHello: widget.onToggleHello ?? (_) async {},
+          onLockTimeoutChanged: (minutes) async {
+            _idleLock.updateTimeout(minutes);
+            if (widget.auth?.session != null) {
+              _idleLock.arm();
+            }
+            setState(() => _lockTimeoutMinutes = minutes);
+          },
         ),
     };
   }

@@ -34,7 +34,7 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-4.1 | Interest / principal fields on txs | 4.1 | `done` | `test/transaction_interest_principal_test.dart` |
 | F-4.2 | 12-month account chart | 4.2 | `done` | `test/account_history_test.dart` |
 | F-4.3 | Extra-payment hint + checking min-balance buffer | 4.3 | `done` | `test/extra_payment_hint_test.dart`, `test/register_row_style_test.dart`, `test/audit_log_test.dart` |
-| F-5.1 | Polish, empty states, idle lock, Activity log viewer | 5.1 | `planned` | |
+| F-5.1 | Polish, empty states, idle lock, Activity log viewer | 5.1 | `done` | `test/activity_log_test.dart`, `test/idle_lock_controller_test.dart`, `test/app_settings_repository_test.dart` |
 | F-5.2 | Backup / export | 5.2 | `planned` | |
 | F-5.3 | Windows exe / MSIX packaging | 5.3 | `planned` | |
 | F-5.4 | Full regression + Windows 11 checklist | 5.4 | `planned` | |

@@ -6,7 +6,7 @@ class AppInfo {
   const AppInfo._();
 
   static const String name = 'Cash Flow Manager';
-  static const String version = '4.3.0';
+  static const String version = '5.1.0';
   static const String buildNumber = '1';
 
   static String get versionLabel => 'v$version';

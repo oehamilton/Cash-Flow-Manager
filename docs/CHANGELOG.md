@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [5.1.0] — 2026-07-24
+
+### Added
+
+- Phase 5.1 Activity log viewer in Settings (read-only audit trail, shows device)
+- Idle lock timeout setting (Never / 5 / 15 / 30 / 60 minutes; default 15)
+- Archive account confirmation dialog
+
 ## [4.3.0] — 2026-07-24
 
 ### Added

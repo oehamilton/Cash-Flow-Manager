@@ -47,10 +47,13 @@ void main() {
     );
 
     await tester.tap(find.text('Settings'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.byKey(const Key('page_settings')), findsOneWidget);
     expect(find.byKey(const Key('lock_button')), findsOneWidget);
     expect(find.byKey(const Key('hello_toggle')), findsOneWidget);
+    expect(find.byKey(const Key('activity_log_locked')), findsOneWidget);
+    expect(find.byKey(const Key('settings_lock_timeout_15')), findsOneWidget);
   });
 }

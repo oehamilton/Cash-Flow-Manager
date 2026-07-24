@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 
 import '../core/app_info.dart';
 import 'audit_categories.dart';
+import 'audit_log_entry.dart';
 import 'database_session.dart';
 
 /// Append-only writer/reader for [audit_log] (no update/delete API).
@@ -97,6 +98,13 @@ LIMIT ?
           },
         )
         .toList();
+  }
+
+  /// Newest-first entries for the Settings Activity log (read-only).
+  List<AuditLogEntry> listRecent({int limit = 100}) {
+    return [
+      for (final row in recent(limit: limit)) AuditLogEntry.fromRow(row),
+    ];
   }
 
   int count() {

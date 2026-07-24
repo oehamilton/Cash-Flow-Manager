@@ -229,6 +229,32 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
       setState(() => _error = 'Vault is locked');
       return;
     }
+    final name = _account?.name ?? 'this account';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('account_confirm_archive'),
+        backgroundColor: AppColors.surfaceElevated,
+        title: const Text('Archive account?'),
+        content: Text(
+          'Archive "$name"? It will leave the active lists but keep its register history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('account_confirm_archive_yes'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
