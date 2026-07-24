@@ -14,6 +14,7 @@ All notable changes to this project are documented here.
 
 - Activity log retention (default 1 year; 90 days / 1 year / 2 years / Forever) with prune on unlock
 - Activity log search (summary, category, action, device; dollar amounts match cents) and paging (25 per page)
+- About dialog (Project8X) from Settings and the left-rail brand/version
 
 ### Fixed
 

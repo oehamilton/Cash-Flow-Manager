@@ -16,6 +16,7 @@ import '../../data/register_csv_exporter.dart';
 import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../about/about_dialog.dart';
 import 'activity_log_panel.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -273,6 +274,22 @@ class _SettingsPageState extends State<SettingsPage> {
                   fontFamily: AppTheme.monoFont,
                   color: AppColors.primaryBright,
                 ),
+              ),
+              const SizedBox(height: 16),
+              Text('About', style: textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                'A ${AppInfo.companyName} product · ${AppInfo.supportEmail}',
+                key: const Key('settings_about_preview'),
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                key: const Key('settings_about_button'),
+                onPressed: () => showAboutAppDialog(context),
+                child: const Text('About'),
               ),
               if (widget.databasePath != null) ...[
                 const SizedBox(height: 8),

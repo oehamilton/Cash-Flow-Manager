@@ -605,23 +605,6 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
                           decoration: const InputDecoration(labelText: 'Notes'),
                         ),
                         const SizedBox(height: 24),
-                        _sectionTitle(textTheme, 'Trends'),
-                        Container(
-                          key: const Key('account_info_chart_placeholder'),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.outline),
-                            color: AppColors.surface.withValues(alpha: 0.5),
-                          ),
-                          child: Text(
-                            '12-month balance / interest chart arrives in Phase 4.2.',
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontFamily: AppTheme.monoFont,
-                              color: AppColors.primaryBright,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
                         Wrap(
                           spacing: 12,
                           runSpacing: 8,

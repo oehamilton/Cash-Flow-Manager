@@ -6,6 +6,7 @@ import '../core/app_info.dart';
 import '../data/account_repository.dart';
 import '../data/app_settings_repository.dart';
 import '../data/audit_log_repository.dart';
+import '../features/about/about_dialog.dart';
 import '../features/accounts/accounts_page.dart';
 import '../features/accounts/debts_page.dart';
 import '../features/payees/payees_page.dart';
@@ -166,26 +167,43 @@ class _AppShellState extends State<AppShell> {
                 labelType: NavigationRailLabelType.all,
                 leading: Padding(
                   padding: const EdgeInsets.fromLTRB(8, 16, 8, 24),
-                  child: Column(
-                    children: [
-                      Text(
-                        'CFM',
-                        key: const Key('app_shell_brand'),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              color: AppColors.primaryBright,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 2,
-                            ),
+                  child: InkWell(
+                    key: const Key('app_shell_about'),
+                    onTap: () => showAboutAppDialog(context),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 4,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        AppInfo.versionLabel,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.onSurfaceMuted,
-                              fontSize: 11,
-                            ),
+                      child: Column(
+                        children: [
+                          Text(
+                            'CFM',
+                            key: const Key('app_shell_brand'),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(
+                                  color: AppColors.primaryBright,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 2,
+                                ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            AppInfo.versionLabel,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(
+                                  color: AppColors.onSurfaceMuted,
+                                  fontSize: 11,
+                                ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 destinations: [

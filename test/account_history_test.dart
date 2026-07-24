@@ -4,11 +4,22 @@ import 'package:cash_flow_manager/data/account_repository.dart';
 import 'package:cash_flow_manager/data/account_type.dart';
 import 'package:cash_flow_manager/data/transaction.dart';
 import 'package:cash_flow_manager/data/transaction_repository.dart';
+import 'package:cash_flow_manager/features/accounts/account_history_chart.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/temp_vault.dart';
 
 void main() {
+  group('formatAxisCents', () {
+    test('rounds to nearest \$10 with no cents', () {
+      expect(formatAxisCents(5000), r'$50');
+      expect(formatAxisCents(50000), r'$500');
+      expect(formatAxisCents(1275), r'$10');
+      expect(formatAxisCents(1749), r'$20');
+      expect(formatAxisCents(-1275), r'-$10');
+    });
+  });
+
   group('AccountHistory', () {
     test('trailingMonthStarts covers 12 months ending at asOf', () {
       final months = AccountHistory.trailingMonthStarts(DateTime(2026, 7, 24));

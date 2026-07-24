@@ -66,5 +66,6 @@ void main() {
       find.byKey(const Key('settings_audit_retention_365')),
       findsOneWidget,
     );
+    expect(find.byKey(const Key('settings_about_button')), findsOneWidget);
   });
 }
