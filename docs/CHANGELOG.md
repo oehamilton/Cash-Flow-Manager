@@ -10,6 +10,11 @@ All notable changes to this project are documented here.
 - Register header includes an account dropdown to switch registers
 - Recurring editor uses the same account/payee autocomplete as the register (account payee = transfer)
 
+### Added
+
+- Activity log retention (default 1 year; 90 days / 1 year / 2 years / Forever) with prune on unlock
+- Activity log search (summary, category, action, device; dollar amounts match cents) and paging (25 per page)
+
 ### Fixed
 
 - Deleting a recurring register occurrence (including transfers) records a skip so rematerialize does not recreate it (schema v5)

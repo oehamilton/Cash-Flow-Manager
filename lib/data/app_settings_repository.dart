@@ -7,6 +7,7 @@ class AppSettingsRepository {
   final DatabaseSession _session;
 
   static const lockTimeoutMinutesKey = 'lock_timeout_minutes';
+  static const auditRetentionDaysKey = 'audit_retention_days';
 
   /// Idle auto-lock minutes; `0` means never.
   int lockTimeoutMinutes({int defaultMinutes = 15}) {
@@ -26,6 +27,26 @@ class AppSettingsRepository {
       throw ArgumentError('lock_timeout_minutes must be >= 0');
     }
     set(lockTimeoutMinutesKey, '$minutes');
+  }
+
+  /// How long to keep audit_log rows; `0` means forever. Default 365 days.
+  int auditRetentionDays({int defaultDays = 365}) {
+    final raw = get(auditRetentionDaysKey);
+    if (raw == null) {
+      return defaultDays;
+    }
+    final parsed = int.tryParse(raw);
+    if (parsed == null || parsed < 0) {
+      return defaultDays;
+    }
+    return parsed;
+  }
+
+  void setAuditRetentionDays(int days) {
+    if (days < 0) {
+      throw ArgumentError('audit_retention_days must be >= 0');
+    }
+    set(auditRetentionDaysKey, '$days');
   }
 
   String? get(String key) {

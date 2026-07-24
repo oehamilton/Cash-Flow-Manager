@@ -49,6 +49,7 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _message;
   bool _messageIsError = false;
   late int _lockTimeoutMinutes;
+  int _auditRetentionDays = 365;
   String? _exportAccountId;
 
   static const _timeoutChoices = <int>[
@@ -59,10 +60,28 @@ class _SettingsPageState extends State<SettingsPage> {
     60,
   ];
 
+  static const _retentionChoices = <int>[
+    90,
+    365,
+    730,
+    0, // forever
+  ];
+
   @override
   void initState() {
     super.initState();
     _lockTimeoutMinutes = widget.lockTimeoutMinutes;
+    _loadAuditRetention();
+  }
+
+  void _loadAuditRetention() {
+    final session = widget.auth?.session;
+    if (session == null) {
+      _auditRetentionDays = 365;
+      return;
+    }
+    _auditRetentionDays =
+        AppSettingsRepository(session).auditRetentionDays();
   }
 
   @override
@@ -71,6 +90,19 @@ class _SettingsPageState extends State<SettingsPage> {
     if (oldWidget.lockTimeoutMinutes != widget.lockTimeoutMinutes) {
       _lockTimeoutMinutes = widget.lockTimeoutMinutes;
     }
+    if (oldWidget.auth?.session != widget.auth?.session) {
+      _loadAuditRetention();
+    }
+  }
+
+  static String _retentionLabel(int days) {
+    return switch (days) {
+      0 => 'Forever',
+      90 => '90 days',
+      365 => '1 year',
+      730 => '2 years',
+      _ => '$days days',
+    };
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -380,10 +412,55 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 4),
               Text(
                 'Read-only trail of unlocks and data changes by device. '
-                'Secrets are never stored.',
+                'Secrets are never stored. Older events are removed per '
+                'retention (default 1 year).',
                 style: textTheme.bodySmall?.copyWith(
                   color: AppColors.onSurfaceMuted,
                 ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                key: Key('settings_audit_retention_$_auditRetentionDays'),
+                initialValue: _retentionChoices.contains(_auditRetentionDays)
+                    ? _auditRetentionDays
+                    : 365,
+                decoration: const InputDecoration(
+                  labelText: 'Activity log retention',
+                  helperText: 'Events older than this are deleted on unlock.',
+                ),
+                items: [
+                  for (final days in _retentionChoices)
+                    DropdownMenuItem(
+                      value: days,
+                      child: Text(_retentionLabel(days)),
+                    ),
+                ],
+                onChanged: (_busy || session == null)
+                    ? null
+                    : (value) {
+                        if (value == null) {
+                          return;
+                        }
+                        _run(() async {
+                          final settings = AppSettingsRepository(session);
+                          settings.setAuditRetentionDays(value);
+                          final removed = AuditLogRepository(session)
+                              .applyRetention(value);
+                          AuditLogRepository(session).append(
+                            category: AuditCategory.settings,
+                            action: AuditAction.update,
+                            summary: value <= 0
+                                ? 'Set activity log retention to forever'
+                                : 'Set activity log retention to '
+                                    '${_retentionLabel(value)}',
+                            detail: {
+                              'audit_retention_days': value,
+                              'pruned_rows': removed,
+                            },
+                          );
+                          setState(() => _auditRetentionDays = value);
+                        });
+                      },
               ),
               const SizedBox(height: 12),
               ActivityLogPanel(session: session),

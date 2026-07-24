@@ -5,6 +5,7 @@ import '../auth/auth_service.dart';
 import '../core/app_info.dart';
 import '../data/account_repository.dart';
 import '../data/app_settings_repository.dart';
+import '../data/audit_log_repository.dart';
 import '../features/accounts/accounts_page.dart';
 import '../features/accounts/debts_page.dart';
 import '../features/payees/payees_page.dart';
@@ -94,7 +95,9 @@ class _AppShellState extends State<AppShell> {
         registerId = primaryId;
       }
       path = await auth.databasePath();
-      lockMinutes = AppSettingsRepository(session).lockTimeoutMinutes();
+      final settings = AppSettingsRepository(session);
+      lockMinutes = settings.lockTimeoutMinutes();
+      AuditLogRepository(session).applyRetention(settings.auditRetentionDays());
       _idleLock.updateTimeout(lockMinutes);
       _idleLock.arm();
     } else {

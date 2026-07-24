@@ -62,5 +62,9 @@ void main() {
     expect(find.byKey(const Key('settings_lock_timeout_15')), findsOneWidget);
     expect(find.text('Activity log'), findsOneWidget);
     expect(find.byKey(const Key('activity_log_locked')), findsOneWidget);
+    expect(
+      find.byKey(const Key('settings_audit_retention_365')),
+      findsOneWidget,
+    );
   });
 }

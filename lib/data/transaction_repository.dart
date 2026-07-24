@@ -7,6 +7,7 @@ import 'audit_categories.dart';
 import 'audit_log_repository.dart';
 import 'database_session.dart';
 import 'forecast_trough.dart';
+import 'money.dart';
 import 'payee_repository.dart';
 import 'payee_suggestion.dart';
 import 'recurrence_materializer.dart';
@@ -520,7 +521,7 @@ WHERE id = ?
     if (difference != 0) {
       throw StateError(
         'Cleared balance does not match statement '
-        '(difference $difference cents)',
+        '(difference ${formatCents(difference)})',
       );
     }
 
@@ -1057,7 +1058,7 @@ WHERE id = ?
 
   static String _summary(String verb, String? payee, int amountCents) {
     final label = (payee == null || payee.isEmpty) ? '(no payee)' : payee;
-    return '$verb transaction "$label" ($amountCents cents)';
+    return '$verb transaction "$label" (${formatCents(amountCents)})';
   }
 
   static String _likeEscape(String value) {
