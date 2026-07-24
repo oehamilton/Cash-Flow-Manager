@@ -15,10 +15,11 @@ import 'reconcile_dialog.dart';
 import 'register_filter.dart';
 import 'register_filter_bar.dart';
 import 'register_metrics_bar.dart';
+import 'register_row_legend.dart';
 import 'register_row_style.dart';
 import 'transaction_editor_dialog.dart';
 
-/// Register surface: sticky metrics, filter bar, and ledger (Phase 2.6).
+/// Register surface: sticky metrics, filter bar, and ledger.
 ///
 /// Ledger rows are always read from [accountId] during [build] so switching
 /// accounts cannot show a stale list from a previous register.
@@ -392,6 +393,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     ),
                     const SizedBox(height: 10),
                     if (metrics != null) RegisterMetricsBar(metrics: metrics),
+                    const RegisterRowLegend(),
                     const SizedBox(height: 8),
                     RegisterFilterBar(
                       filter: _filter,

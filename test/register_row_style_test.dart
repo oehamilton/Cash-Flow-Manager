@@ -33,6 +33,7 @@ void main() {
     expect(style.background, AppColors.rowCleared);
     expect(style.accent, AppColors.primary);
     expect(style.mutedForeground, isTrue);
+    expect(style.kind, RegisterRowKind.cleared);
   });
 
   test('uncleared past rows use uncleared-past background', () {
@@ -42,16 +43,35 @@ void main() {
     );
     expect(style.background, AppColors.rowUnclearedPast);
     expect(style.accent, AppColors.danger);
-    expect(style.mutedForeground, isFalse);
+    expect(style.kind, RegisterRowKind.unclearedPast);
   });
 
   test('uncleared future manual rows use manual-future background', () {
     final style = RegisterRowStyle.forTransaction(
-      tx(cleared: false, date: DateTime(2026, 8, 1)),
+      tx(
+        cleared: false,
+        date: DateTime(2026, 8, 1),
+        source: TransactionSource.manualFuture,
+      ),
       asOf: asOf,
     );
     expect(style.background, AppColors.rowManualFuture);
     expect(style.accent, AppColors.warning);
+    expect(style.kind, RegisterRowKind.manualFuture);
+  });
+
+  test('uncleared future generated rows use auto-future background', () {
+    final style = RegisterRowStyle.forTransaction(
+      tx(
+        cleared: false,
+        date: DateTime(2026, 8, 1),
+        source: TransactionSource.recurringGenerated,
+      ),
+      asOf: asOf,
+    );
+    expect(style.background, AppColors.rowAutoFuture);
+    expect(style.accent, AppColors.primaryBright);
+    expect(style.kind, RegisterRowKind.autoFuture);
   });
 
   test('cleared wins over future date', () {
@@ -60,5 +80,6 @@ void main() {
       asOf: asOf,
     );
     expect(style.background, AppColors.rowCleared);
+    expect(style.kind, RegisterRowKind.cleared);
   });
 }

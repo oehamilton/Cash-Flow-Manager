@@ -118,11 +118,15 @@ LIMIT ?
   }
 
   /// Creates a manual transaction and writes an audit row.
-  String create(TransactionDraft draft) {
+  ///
+  /// Future-dated manuals are stored as [TransactionSource.manualFuture]
+  /// (Phase 3.3).
+  String create(TransactionDraft draft, {DateTime? asOf}) {
     _requireAccount(draft.accountId);
     final payee = _nullIfBlank(draft.payee);
     final memo = _nullIfBlank(draft.memo);
     final date = _dateOnly(draft.date);
+    final source = TransactionSource.manualForDate(draft.date, asOf: asOf);
     final now = DateTime.now().toUtc().toIso8601String();
     final id = _uuid.v4();
 
@@ -142,7 +146,7 @@ INSERT INTO transactions (
           payee,
           memo,
           draft.amountCents,
-          TransactionSource.manual,
+          source,
           now,
           now,
         ],
@@ -159,7 +163,7 @@ INSERT INTO transactions (
           'date': date,
           'payee': payee,
           'amount_cents': draft.amountCents,
-          'source': TransactionSource.manual,
+          'source': source,
         },
       );
 
@@ -263,7 +267,7 @@ WHERE id = ?
   }
 
   /// Updates editable fields; opening-balance and cleared rows are protected.
-  void update(String id, TransactionUpdate patch) {
+  void update(String id, TransactionUpdate patch, {DateTime? asOf}) {
     final existing = getById(id);
     if (existing == null) {
       throw StateError('Transaction not found');
@@ -294,6 +298,12 @@ WHERE id = ?
       nextMemo = existing.memo;
     }
     final amount = patch.amountCents ?? existing.amountCents;
+    final nextSource = TransactionSource.isUserManual(existing.source)
+        ? TransactionSource.manualForDate(
+            patch.date ?? existing.date,
+            asOf: asOf,
+          )
+        : existing.source;
     final now = DateTime.now().toUtc().toIso8601String();
 
     _db.execute('BEGIN IMMEDIATE');
@@ -305,10 +315,11 @@ UPDATE transactions SET
   payee = ?,
   memo = ?,
   amount_cents = ?,
+  source = ?,
   updated_at = ?
 WHERE id = ?
 ''',
-        [nextDate, nextPayee, nextMemo, amount, now, id],
+        [nextDate, nextPayee, nextMemo, amount, nextSource, now, id],
       );
 
       final updated = getById(id)!;
@@ -323,6 +334,7 @@ WHERE id = ?
           'date': _dateOnly(updated.date),
           'payee': updated.payee,
           'amount_cents': updated.amountCents,
+          'source': updated.source,
         },
       );
 

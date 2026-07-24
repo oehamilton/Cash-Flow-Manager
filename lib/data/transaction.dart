@@ -88,6 +88,18 @@ abstract final class TransactionSource {
   static const recurringGenerated = 'recurring_generated';
   static const manualFuture = 'manual_future';
   static const openingBalance = 'opening_balance';
+
+  /// Manual entry source based on whether [date] is after [asOf] (today).
+  static String manualForDate(DateTime date, {DateTime? asOf}) {
+    final today = asOf ?? DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final txDate = DateTime(date.year, date.month, date.day);
+    return txDate.isAfter(todayDate) ? manualFuture : manual;
+  }
+
+  /// Whether [source] is a user-entered manual row (past or future).
+  static bool isUserManual(String source) =>
+      source == manual || source == manualFuture;
 }
 
 /// Ledger row with computed running balance (Phase 2.2).

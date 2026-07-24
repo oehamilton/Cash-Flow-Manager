@@ -141,6 +141,13 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
     return '$y-$m-$d';
   }
 
+  bool get _isFutureDate {
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final d = DateTime(_date.year, _date.month, _date.day);
+    return d.isAfter(todayDate);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.initial != null;
@@ -170,6 +177,17 @@ class _TransactionEditorDialogState extends State<TransactionEditorDialog> {
                   label: Text(_dateLabel(_date)),
                 ),
               ),
+              if (_isFutureDate)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 4),
+                  child: Text(
+                    key: const Key('tx_future_hint'),
+                    'Future date — saved as a manual forecast row.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.warning,
+                        ),
+                  ),
+                ),
               const SizedBox(height: 8),
               Autocomplete<String>(
                 optionsBuilder: (textEditingValue) {

@@ -27,7 +27,7 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-2.6 | Register UI / search / keyboard polish | 2.6 | `done` | `test/register_filter_test.dart` |
 | F-3.1 | Recurrence rule CRUD | 3.1 | `done` | `test/recurrence_rule_repository_test.dart` |
 | F-3.2 | Materialize ~2 months of instances | 3.2 | `done` | `test/recurrence_materializer_test.dart` |
-| F-3.3 | Manual future txs + forecast row colors | 3.3 | `planned` | |
+| F-3.3 | Manual future txs + forecast row colors | 3.3 | `done` | `test/register_row_style_test.dart`, `test/transaction_repository_test.dart` |
 | F-3.4 | Edit generated until cleared | 3.4 | `planned` | |
 | F-3.5 | 4-week / 8-week trough metrics | 3.5 | `planned` | |
 | F-3.6 | Optional forecast visuals pass | 3.6 | `deferred` | |

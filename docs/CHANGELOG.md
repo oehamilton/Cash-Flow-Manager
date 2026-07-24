@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [3.3.0] — 2026-07-24
+
+### Added
+
+- Phase 3.3 manual future transactions and distinct forecast row colors
+
 ## [3.2.0] — 2026-07-24
 
 ### Added
