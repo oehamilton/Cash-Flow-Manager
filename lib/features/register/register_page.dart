@@ -8,6 +8,7 @@ import '../../data/transaction.dart';
 import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import 'reconcile_dialog.dart';
 import 'transaction_editor_dialog.dart';
 
 /// Register surface: account header + ledger with credit/debit/balance.
@@ -68,7 +69,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _editTransaction(Transaction tx) async {
-    if (tx.isOpeningBalance) {
+    if (tx.isOpeningBalance || tx.isCleared) {
       return;
     }
     final repo = _transactions;
@@ -102,7 +103,7 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 
   Future<void> _deleteTransaction(Transaction tx) async {
-    if (tx.isOpeningBalance) {
+    if (tx.isOpeningBalance || tx.isCleared) {
       return;
     }
     final repo = _transactions;
@@ -143,6 +144,44 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  void _toggleCleared(Transaction tx, bool cleared) {
+    final repo = _transactions;
+    if (repo == null) {
+      return;
+    }
+    try {
+      repo.setCleared(tx.id, cleared: cleared);
+      setState(() => _error = null);
+    } on Object catch (e) {
+      setState(() => _error = e.toString());
+    }
+  }
+
+  Future<void> _openReconcile(Account account) async {
+    final repo = _transactions;
+    if (repo == null) {
+      return;
+    }
+    final finished = await ReconcileDialog.show(
+      context,
+      accountId: account.id,
+      repository: repo,
+      clearedBalanceCents: repo.clearedBalanceCents(account.id),
+    );
+    if (!mounted) {
+      return;
+    }
+    if (finished == true) {
+      setState(() => _error = null);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reconcile finished')),
+      );
+    } else {
+      // Cleared flags may have changed while the dialog was open.
+      setState(() {});
+    }
+  }
+
   String _dateLabel(DateTime date) {
     final y = date.year.toString().padLeft(4, '0');
     final m = date.month.toString().padLeft(2, '0');
@@ -158,18 +197,20 @@ class _RegisterPageState extends State<RegisterPage> {
 
     Account? account;
     var balanceCents = 0;
+    var clearedBalanceCents = 0;
     List<RegisterEntry> entries = const [];
     String? loadError = _error;
 
     if (session != null && accountId != null) {
       try {
         final accounts = AccountRepository(session);
+        final txs = TransactionRepository(session);
         account = accounts.getById(accountId);
         if (account != null) {
           // Always scope by the widget account id (not cached state).
           balanceCents = accounts.balanceCents(accountId);
-          entries =
-              TransactionRepository(session).listRegisterEntries(accountId);
+          clearedBalanceCents = txs.clearedBalanceCents(accountId);
+          entries = txs.listRegisterEntries(accountId);
         }
       } on Object catch (e) {
         loadError = e.toString();
@@ -205,13 +246,21 @@ class _RegisterPageState extends State<RegisterPage> {
                     style: textTheme.headlineMedium,
                   ),
                 ),
-                if (account != null)
+                if (account != null) ...[
+                  OutlinedButton.icon(
+                    key: const Key('register_reconcile'),
+                    onPressed: () => _openReconcile(account!),
+                    icon: const Icon(Icons.fact_check_outlined),
+                    label: const Text('Reconcile'),
+                  ),
+                  const SizedBox(width: 8),
                   FilledButton.icon(
                     key: const Key('register_add_tx'),
                     onPressed: () => _addTransaction(account!),
                     icon: const Icon(Icons.add),
                     label: const Text('Add transaction'),
                   ),
+                ],
               ],
             ),
             const SizedBox(height: 8),
@@ -233,23 +282,21 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Balance',
-                style: textTheme.labelLarge?.copyWith(
-                  color: AppColors.onSurfaceMuted,
-                  fontFamily: AppTheme.monoFont,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                formatCents(balanceCents),
-                key: const Key('register_balance'),
-                style: textTheme.headlineSmall?.copyWith(
-                  fontFamily: AppTheme.monoFont,
-                  color: balanceCents < 0
-                      ? AppColors.danger
-                      : AppColors.onSurface,
-                ),
+              Wrap(
+                spacing: 32,
+                runSpacing: 12,
+                children: [
+                  _BalanceMetric(
+                    label: 'Balance',
+                    valueKey: const Key('register_balance'),
+                    cents: balanceCents,
+                  ),
+                  _BalanceMetric(
+                    label: 'Cleared',
+                    valueKey: const Key('register_cleared_balance'),
+                    cents: clearedBalanceCents,
+                  ),
+                ],
               ),
               if (loadError != null) ...[
                 const SizedBox(height: 12),
@@ -306,10 +353,16 @@ class _RegisterPageState extends State<RegisterPage> {
                                       _RegisterLedgerRow(
                                         entry: entry,
                                         dateLabel: _dateLabel(tx.date),
-                                        onEdit: tx.isOpeningBalance
+                                        onClearedChanged: tx.isOpeningBalance
+                                            ? null
+                                            : (value) =>
+                                                _toggleCleared(tx, value),
+                                        onEdit: tx.isOpeningBalance ||
+                                                tx.isCleared
                                             ? null
                                             : () => _editTransaction(tx),
-                                        onDelete: tx.isOpeningBalance
+                                        onDelete: tx.isOpeningBalance ||
+                                                tx.isCleared
                                             ? null
                                             : () => _deleteTransaction(tx),
                                       ),
@@ -330,6 +383,44 @@ class _RegisterPageState extends State<RegisterPage> {
   }
 }
 
+class _BalanceMetric extends StatelessWidget {
+  const _BalanceMetric({
+    required this.label,
+    required this.valueKey,
+    required this.cents,
+  });
+
+  final String label;
+  final Key valueKey;
+  final int cents;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: textTheme.labelLarge?.copyWith(
+            color: AppColors.onSurfaceMuted,
+            fontFamily: AppTheme.monoFont,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          formatCents(cents),
+          key: valueKey,
+          style: textTheme.headlineSmall?.copyWith(
+            fontFamily: AppTheme.monoFont,
+            color: cents < 0 ? AppColors.danger : AppColors.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _RegisterColumnHeader extends StatelessWidget {
   const _RegisterColumnHeader({required this.textTheme});
 
@@ -342,18 +433,22 @@ class _RegisterColumnHeader extends StatelessWidget {
     );
     return Row(
       children: [
+        SizedBox(
+          width: 40,
+          child: Text('Clr', textAlign: TextAlign.center, style: style),
+        ),
         SizedBox(width: 96, child: Text('Date', style: style)),
         Expanded(child: Text('Payee', style: style)),
         SizedBox(
-          width: 96,
+          width: 88,
           child: Text('Payment', textAlign: TextAlign.end, style: style),
         ),
         SizedBox(
-          width: 96,
+          width: 88,
           child: Text('Deposit', textAlign: TextAlign.end, style: style),
         ),
         SizedBox(
-          width: 104,
+          width: 96,
           child: Text('Balance', textAlign: TextAlign.end, style: style),
         ),
         const SizedBox(width: 88),
@@ -366,12 +461,14 @@ class _RegisterLedgerRow extends StatelessWidget {
   const _RegisterLedgerRow({
     required this.entry,
     required this.dateLabel,
+    this.onClearedChanged,
     this.onEdit,
     this.onDelete,
   });
 
   final RegisterEntry entry;
   final String dateLabel;
+  final ValueChanged<bool>? onClearedChanged;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -387,12 +484,26 @@ class _RegisterLedgerRow extends StatelessWidget {
     final balance = entry.runningBalanceCents;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              SizedBox(
+                width: 40,
+                child: Checkbox(
+                  key: Key('register_tx_clear_${tx.id}'),
+                  value: tx.isCleared,
+                  onChanged: onClearedChanged == null
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            onClearedChanged!(value);
+                          }
+                        },
+                ),
+              ),
               SizedBox(
                 width: 96,
                 child: Text(dateLabel, style: mono),
@@ -401,7 +512,7 @@ class _RegisterLedgerRow extends StatelessWidget {
                 child: Text(payeeLabel, overflow: TextOverflow.ellipsis),
               ),
               SizedBox(
-                width: 96,
+                width: 88,
                 child: Text(
                   debit == null ? '' : formatCents(debit),
                   textAlign: TextAlign.end,
@@ -409,7 +520,7 @@ class _RegisterLedgerRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: 96,
+                width: 88,
                 child: Text(
                   credit == null ? '' : formatCents(credit),
                   textAlign: TextAlign.end,
@@ -417,7 +528,7 @@ class _RegisterLedgerRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: 104,
+                width: 96,
                 child: Text(
                   formatCents(balance),
                   key: Key('register_tx_balance_${tx.id}'),
@@ -429,25 +540,27 @@ class _RegisterLedgerRow extends StatelessWidget {
               ),
               SizedBox(
                 width: 88,
-                child: onEdit == null
+                child: onEdit == null && onDelete == null
                     ? const SizedBox.shrink()
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          IconButton(
-                            key: Key('register_tx_edit_${tx.id}'),
-                            tooltip: 'Edit',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: onEdit,
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                          ),
-                          IconButton(
-                            key: Key('register_tx_delete_${tx.id}'),
-                            tooltip: 'Delete',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: onDelete,
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                          ),
+                          if (onEdit != null)
+                            IconButton(
+                              key: Key('register_tx_edit_${tx.id}'),
+                              tooltip: 'Edit',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: onEdit,
+                              icon: const Icon(Icons.edit_outlined, size: 18),
+                            ),
+                          if (onDelete != null)
+                            IconButton(
+                              key: Key('register_tx_delete_${tx.id}'),
+                              tooltip: 'Delete',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: onDelete,
+                              icon: const Icon(Icons.delete_outline, size: 18),
+                            ),
                         ],
                       ),
               ),
@@ -455,7 +568,7 @@ class _RegisterLedgerRow extends StatelessWidget {
           ),
           if (tx.memo != null && tx.memo!.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(left: 96, top: 2),
+              padding: const EdgeInsets.only(left: 136, top: 2),
               child: Text(
                 tx.memo!,
                 style: textTheme.bodySmall?.copyWith(
@@ -465,9 +578,19 @@ class _RegisterLedgerRow extends StatelessWidget {
             )
           else if (tx.isOpeningBalance)
             Padding(
-              padding: const EdgeInsets.only(left: 96, top: 2),
+              padding: const EdgeInsets.only(left: 136, top: 2),
               child: Text(
                 'Opening balance',
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceMuted,
+                ),
+              ),
+            )
+          else if (tx.isCleared)
+            Padding(
+              padding: const EdgeInsets.only(left: 136, top: 2),
+              child: Text(
+                'Cleared — unclear to edit',
                 style: textTheme.bodySmall?.copyWith(
                   color: AppColors.onSurfaceMuted,
                 ),
