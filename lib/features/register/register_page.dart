@@ -9,6 +9,7 @@ import '../../data/transaction.dart';
 import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../recurrence/recurrence_page.dart';
 import 'reconcile_dialog.dart';
 import 'register_filter.dart';
 import 'register_filter_bar.dart';
@@ -38,6 +39,7 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _error;
   RegisterFilter _filter = const RegisterFilter();
   final FocusNode _searchFocus = FocusNode();
+  bool _showRecurring = false;
 
   @override
   void dispose() {
@@ -207,6 +209,18 @@ class _RegisterPageState extends State<RegisterPage> {
     final textTheme = Theme.of(context).textTheme;
     final session = widget.auth?.session;
     final accountId = widget.accountId;
+    final auth = widget.auth;
+
+    if (_showRecurring &&
+        auth != null &&
+        session != null &&
+        accountId != null) {
+      return RecurrencePage(
+        auth: auth,
+        accountId: accountId,
+        onClose: () => setState(() => _showRecurring = false),
+      );
+    }
 
     Account? account;
     RegisterMetrics? metrics;
@@ -298,6 +312,14 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                       ),
                       if (account != null) ...[
+                        OutlinedButton.icon(
+                          key: const Key('register_recurring'),
+                          onPressed: () =>
+                              setState(() => _showRecurring = true),
+                          icon: const Icon(Icons.repeat),
+                          label: const Text('Recurring'),
+                        ),
+                        const SizedBox(width: 8),
                         OutlinedButton.icon(
                           key: const Key('register_reconcile'),
                           onPressed: () => _openReconcile(account!),

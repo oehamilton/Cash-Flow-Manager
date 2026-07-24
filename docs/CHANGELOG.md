@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [3.1.0] — 2026-07-24
+
+### Added
+
+- Phase 3.1 recurrence rule CRUD (frequencies; instances in 3.2)
+
 ## [2.6.0] — 2026-07-24
 
 ### Added
