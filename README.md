@@ -2,21 +2,28 @@
 
 Local-first bank register and short-horizon cash flow forecaster for Windows 11 (Android later). Built with Flutter; data stored in a user-selectable encrypted SQLite database.
 
-**Current version:** 0.3.0 (Phase 0.3 encrypted DB)
+**Current version:** 0.4.0 (Phase 0.4 unlock)
 
 Data files use SQLite3MultipleCiphers encryption (`hooks.sqlite3.source: sqlite3mc`). Never commit `*.cfm.db` or `*.cfm.lock` files.
+
+**Windows notes:** Flutter plugin builds need Developer Mode (symlinks). Hello secrets use Windows Credential Manager (`win32`) — not `flutter_secure_storage` — to avoid a broken JNI/x64 JDK link on Windows ARM64.
 
 ## Documentation
 
 - **[Requirements & phased plan](docs/PLAN.md)** — approved product and development plan
 - **[Feature tracker](docs/FEATURES.md)** — progress by phase/subphase
+- **[Dependencies & machine setup](docs/DEPENDENCIES.md)** — install list for a new PC (Intel/ARM notes)
 - **[Changelog](docs/CHANGELOG.md)** — notable changes per merge
 - **[Fonts](docs/FONTS.md)** — bundled UI typefaces (OFL)
 
 ## Prerequisites
 
-- Flutter SDK (stable), on `PATH`
-- Windows 11 with Visual Studio 2022 (**Desktop development with C++**) for Windows builds
+See **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** for the full install list. Short version:
+
+- Flutter SDK (stable) on `PATH`
+- Visual Studio 2022 with **Desktop development with C++**
+- Windows **Developer Mode** (plugin symlinks)
+- Git; optional GitHub CLI (`gh`)
 
 ```bash
 flutter doctor

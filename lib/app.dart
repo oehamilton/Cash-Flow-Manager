@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
-import 'app_shell/app_shell.dart';
 import 'core/app_info.dart';
+import 'features/unlock/auth_gate.dart';
 import 'theme/app_theme.dart';
 
 class CashFlowApp extends StatelessWidget {
-  const CashFlowApp({super.key});
+  const CashFlowApp({super.key, this.authGate});
+
+  /// Optional override for tests.
+  final Widget? authGate;
 
   @override
   Widget build(BuildContext context) {
@@ -13,7 +16,7 @@ class CashFlowApp extends StatelessWidget {
       title: AppInfo.name,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark(),
-      home: const AppShell(),
+      home: authGate ?? const AuthGate(),
     );
   }
 }

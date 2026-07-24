@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.3.0+1
+version: 0.4.0+1
 
 environment:
   sdk: ^3.12.2
@@ -37,6 +37,10 @@ dependencies:
   sqlite3: ^3.5.0
   path: ^1.9.1
   uuid: ^4.6.0
+  local_auth: ^3.0.2
+  cryptography: ^2.9.0
+  win32: ^6.3.0
+  ffi: ^2.2.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -47,6 +51,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  mocktail: ^1.0.5
 
 # Bundle SQLite3MultipleCiphers for at-rest encryption (Windows-friendly).
 # See https://pub.dev/packages/sqlite3 — encryption / hook options.
