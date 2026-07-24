@@ -9,7 +9,7 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-0.1 | Flutter Windows scaffold, analysis, gitignore, README, feature tracker, app version on home | 0.1 | `done` | `test/app_info_test.dart`, `test/widget_test.dart` |
 | F-0.2 | Theme tokens + app shell navigation (UI direction gate) | 0.2 | `done` | `test/widget_test.dart`, `test/app_destination_test.dart` |
 | F-0.2b | Optional theme revision | 0.2b | `deferred` | |
-| F-0.3 | SQLCipher DB, schema v1, exclusive lock file | 0.3 | `planned` | |
+| F-0.3 | Encrypted DB (sqlite3mc), schema v1, exclusive lock file | 0.3 | `done` | `test/database_opener_test.dart`, `test/app_lock_file_test.dart` |
 | F-0.4 | App password unlock + Windows Hello | 0.4 | `planned` | |
 | F-0.5 | First-run wizard → primary checking + opening balance | 0.5 | `planned` | |
 | F-0.6 | Test harness baseline / sample coverage expansion | 0.6 | `planned` | |

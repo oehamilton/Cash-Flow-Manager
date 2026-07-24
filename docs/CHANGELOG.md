@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-23
+
+### Added
+
+- Encrypted SQLite (sqlite3mc), schema v1, exclusive `.cfm.lock` single-writer lock
+- `DatabaseSession` open/migrate/close API for later unlock and wizard phases
+
 ## [0.2.0] — 2026-07-23
 
 ### Added
