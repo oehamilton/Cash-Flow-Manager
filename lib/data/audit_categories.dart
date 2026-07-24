@@ -20,6 +20,9 @@ abstract final class AuditAction {
   static const update = 'update';
   static const delete = 'delete';
   static const archive = 'archive';
+  static const clear = 'clear';
+  static const unclear = 'unclear';
+  static const reconcile = 'reconcile';
 }
 
 abstract final class AuditEntityType {

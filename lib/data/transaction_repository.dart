@@ -46,6 +46,19 @@ ORDER BY date ASC, id ASC
     return withRunningBalances(listForAccount(accountId));
   }
 
+  /// Sum of cleared transactions (reconciled balance).
+  int clearedBalanceCents(String accountId) {
+    final row = _db.select(
+      '''
+SELECT COALESCE(SUM(amount_cents), 0) AS balance
+FROM transactions
+WHERE account_id = ? AND is_cleared = 1
+''',
+      [accountId],
+    ).first;
+    return row['balance'] as int;
+  }
+
   /// Distinct historical payees for autocomplete (case-insensitive prefix).
   List<String> payeeSuggestions(
     String accountId, {
@@ -135,7 +148,98 @@ INSERT INTO transactions (
     }
   }
 
-  /// Updates editable fields; opening-balance rows are protected.
+  /// Marks a transaction cleared or uncleared and writes an audit row.
+  void setCleared(String id, {required bool cleared}) {
+    final existing = getById(id);
+    if (existing == null) {
+      throw StateError('Transaction not found');
+    }
+    if (existing.isOpeningBalance && !cleared) {
+      throw StateError('Opening balance cannot be uncleared');
+    }
+    if (existing.isCleared == cleared) {
+      return;
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      _db.execute(
+        '''
+UPDATE transactions SET
+  is_cleared = ?,
+  cleared_at = ?,
+  updated_at = ?
+WHERE id = ?
+''',
+        [cleared ? 1 : 0, cleared ? now : null, now, id],
+      );
+
+      _audit.append(
+        category: AuditCategory.transaction,
+        action: cleared ? AuditAction.clear : AuditAction.unclear,
+        entityType: AuditEntityType.transaction,
+        entityId: id,
+        summary: _summary(
+          cleared ? 'Cleared' : 'Uncleared',
+          existing.payee,
+          existing.amountCents,
+        ),
+        detail: {
+          'account_id': existing.accountId,
+          'date': _dateOnly(existing.date),
+          'payee': existing.payee,
+          'amount_cents': existing.amountCents,
+          'is_cleared': cleared,
+        },
+      );
+
+      _db.execute('COMMIT');
+    } on Object {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  /// Finishes a statement reconcile when cleared balance matches the statement.
+  void finishReconcile({
+    required String accountId,
+    required int statementEndingBalanceCents,
+  }) {
+    _requireAccount(accountId);
+    final cleared = clearedBalanceCents(accountId);
+    final difference = statementEndingBalanceCents - cleared;
+    if (difference != 0) {
+      throw StateError(
+        'Cleared balance does not match statement '
+        '(difference $difference cents)',
+      );
+    }
+
+    _db.execute('BEGIN IMMEDIATE');
+    try {
+      _audit.append(
+        category: AuditCategory.transaction,
+        action: AuditAction.reconcile,
+        entityType: AuditEntityType.account,
+        entityId: accountId,
+        summary:
+            'Reconciled to statement ending $statementEndingBalanceCents cents',
+        detail: {
+          'account_id': accountId,
+          'statement_ending_balance_cents': statementEndingBalanceCents,
+          'cleared_balance_cents': cleared,
+          'difference_cents': 0,
+        },
+      );
+      _db.execute('COMMIT');
+    } on Object {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  /// Updates editable fields; opening-balance and cleared rows are protected.
   void update(String id, TransactionUpdate patch) {
     final existing = getById(id);
     if (existing == null) {
@@ -143,6 +247,9 @@ INSERT INTO transactions (
     }
     if (existing.isOpeningBalance) {
       throw StateError('Opening balance cannot be edited');
+    }
+    if (existing.isCleared) {
+      throw StateError('Cleared transactions cannot be edited; unclear first');
     }
 
     final nextDate =
@@ -203,7 +310,7 @@ WHERE id = ?
     }
   }
 
-  /// Deletes a transaction; opening-balance rows are protected.
+  /// Deletes a transaction; opening-balance and cleared rows are protected.
   void delete(String id) {
     final existing = getById(id);
     if (existing == null) {
@@ -211,6 +318,9 @@ WHERE id = ?
     }
     if (existing.isOpeningBalance) {
       throw StateError('Opening balance cannot be deleted');
+    }
+    if (existing.isCleared) {
+      throw StateError('Cleared transactions cannot be deleted; unclear first');
     }
 
     _db.execute('BEGIN IMMEDIATE');
