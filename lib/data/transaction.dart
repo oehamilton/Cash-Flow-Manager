@@ -1,3 +1,5 @@
+import 'recurrence_schedule.dart';
+
 /// Persisted ledger row in [transactions].
 class Transaction {
   const Transaction({
@@ -46,7 +48,7 @@ class Transaction {
     return Transaction(
       id: row['id'] as String,
       accountId: row['account_id'] as String,
-      date: DateTime.parse(row['date'] as String),
+      date: RecurrenceSchedule.parseDateOnly(row['date'] as String),
       postDate: _parseOptionalDate(row['post_date'] as String?),
       payee: row['payee'] as String?,
       memo: row['memo'] as String?,
@@ -69,7 +71,7 @@ class Transaction {
     if (raw == null || raw.isEmpty) {
       return null;
     }
-    return DateTime.parse(raw);
+    return RecurrenceSchedule.parseDateOnly(raw);
   }
 
   static DateTime? _parseOptionalDateTime(String? raw) {

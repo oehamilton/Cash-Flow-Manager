@@ -5,6 +5,8 @@ import '../../data/account_repository.dart';
 import '../../data/money.dart';
 import '../../data/recurrence_rule.dart';
 import '../../data/recurrence_rule_repository.dart';
+import '../../data/transaction.dart';
+import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'recurrence_editor_dialog.dart';
@@ -86,7 +88,7 @@ class _RecurrencePageState extends State<RecurrencePage> {
       return;
     }
     try {
-      repo.create(
+      final id = repo.create(
         RecurrenceRuleDraft(
           accountId: widget.accountId,
           payee: result.payee,
@@ -100,7 +102,28 @@ class _RecurrencePageState extends State<RecurrencePage> {
           isActive: result.isActive,
         ),
       );
+      final generated = TransactionRepository(widget.auth.session!)
+          .listForAccount(widget.accountId)
+          .where(
+            (t) =>
+                t.source == TransactionSource.recurringGenerated &&
+                t.recurrenceRuleId == id,
+          )
+          .length;
       _reload();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            generated == 0
+                ? 'Recurring rule saved (no upcoming rows in the ~2-month window).'
+                : 'Recurring rule saved — $generated upcoming register '
+                    'row${generated == 1 ? '' : 's'} added.',
+          ),
+        ),
+      );
     } on Object catch (e) {
       setState(() => _error = e.toString());
     }
@@ -228,7 +251,7 @@ class _RecurrencePageState extends State<RecurrencePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Rules for this account. Instances appear on the register in Phase 3.2.',
+              'Rules for this account. Active rules post ~2 months of instances to the register.',
               style: textTheme.bodyMedium?.copyWith(
                 color: AppColors.onSurfaceMuted,
               ),

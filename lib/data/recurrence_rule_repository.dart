@@ -4,11 +4,10 @@ import 'package:uuid/uuid.dart';
 import 'audit_categories.dart';
 import 'audit_log_repository.dart';
 import 'database_session.dart';
+import 'recurrence_materializer.dart';
 import 'recurrence_rule.dart';
 
 /// Recurrence rule CRUD with audit writes (Phase 3.1).
-///
-/// Materializing instances into the register arrives in Phase 3.2.
 class RecurrenceRuleRepository {
   RecurrenceRuleRepository(this._session, {Uuid? uuid})
       : _uuid = uuid ?? const Uuid();
@@ -51,6 +50,17 @@ ORDER BY is_active DESC, payee COLLATE NOCASE ASC, id ASC
 ''',
             [accountId],
           );
+    return rows.map(RecurrenceRule.fromRow).toList();
+  }
+
+  List<RecurrenceRule> listAllActive() {
+    final rows = _db.select(
+      '''
+SELECT * FROM recurrence_rules
+WHERE is_active = 1
+ORDER BY account_id ASC, payee COLLATE NOCASE ASC, id ASC
+''',
+    );
     return rows.map(RecurrenceRule.fromRow).toList();
   }
 
@@ -119,11 +129,16 @@ INSERT INTO recurrence_rules (
       );
 
       _db.execute('COMMIT');
-      return id;
     } on Object {
       _db.execute('ROLLBACK');
       rethrow;
     }
+
+    final created = getById(id)!;
+    if (created.isActive) {
+      RecurrenceMaterializer(_session, uuid: _uuid).materializeRule(created);
+    }
+    return id;
   }
 
   void update(String id, RecurrenceRuleUpdate patch) {
@@ -237,6 +252,11 @@ WHERE id = ?
     } on Object {
       _db.execute('ROLLBACK');
       rethrow;
+    }
+
+    final updated = getById(id)!;
+    if (updated.isActive) {
+      RecurrenceMaterializer(_session, uuid: _uuid).materializeRule(updated);
     }
   }
 

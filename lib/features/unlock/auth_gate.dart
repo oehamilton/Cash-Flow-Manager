@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app_shell/app_shell.dart';
 import '../../auth/auth_service.dart';
 import '../../data/account_repository.dart';
+import '../../data/recurrence_materializer.dart';
 import '../wizard/setup_wizard_page.dart';
 import 'unlock_page.dart';
 
@@ -63,8 +64,12 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _onUnlocked() async {
+    final session = _auth.session!;
     final needsPrimary =
-        !AccountRepository(_auth.session!).hasPrimaryAccount();
+        !AccountRepository(session).hasPrimaryAccount();
+    if (!needsPrimary) {
+      RecurrenceMaterializer(session).materializeAll();
+    }
     if (!mounted) {
       return;
     }

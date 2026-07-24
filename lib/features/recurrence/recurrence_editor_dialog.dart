@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../../data/money.dart';
 import '../../data/recurrence_frequency.dart';
+import '../../data/recurrence_materializer.dart';
 import '../../data/recurrence_rule.dart';
+import '../../data/recurrence_schedule.dart';
 import '../../theme/app_colors.dart';
 
 class RecurrenceEditorResult {
@@ -82,6 +84,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
     _intervalController = TextEditingController(
       text: '${initial?.interval ?? 1}',
     );
+    _intervalController.addListener(() => setState(() {}));
     _frequency = initial?.frequency ?? RecurrenceFrequency.monthly;
     _anchorDate = initial?.anchorDate ?? DateTime.now();
     _endDate = initial?.endDate;
@@ -106,6 +109,38 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
     final m = date.month.toString().padLeft(2, '0');
     final d = date.day.toString().padLeft(2, '0');
     return '$y-$m-$d';
+  }
+
+  String get _intervalHelper => switch (_frequency) {
+        RecurrenceFrequency.daily => '1 = every day, 2 = every other day',
+        RecurrenceFrequency.weekly =>
+          '1 = every week; use 2 for every two weeks',
+        RecurrenceFrequency.biweekly =>
+          'Leave at 1 for every two weeks (2 = every 4 weeks)',
+        RecurrenceFrequency.semimonthly => 'Leave at 1 (twice each month)',
+        RecurrenceFrequency.monthly =>
+          '1 = every month (this is not weeks)',
+        RecurrenceFrequency.quarterly => '1 = every quarter',
+        RecurrenceFrequency.yearly => '1 = every year',
+      };
+
+  /// Dates the materializer will insert for the ~2-month horizon.
+  List<DateTime> get _previewDates {
+    final interval = int.tryParse(_intervalController.text.trim()) ?? 0;
+    if (interval < 1) {
+      return const [];
+    }
+    final today = RecurrenceSchedule.dateOnly(DateTime.now());
+    return RecurrenceSchedule.occurrencesInRange(
+      anchor: _anchorDate,
+      start: today,
+      end: today.add(
+        const Duration(days: RecurrenceMaterializer.defaultHorizonDays),
+      ),
+      frequency: _frequency,
+      interval: interval,
+      ruleEnd: _endDate,
+    );
   }
 
   void _submit() {
@@ -250,18 +285,26 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                     DropdownMenuItem(value: f, child: Text(f.label)),
                 ],
                 onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _frequency = value);
+                  if (value == null) {
+                    return;
                   }
+                  setState(() {
+                    _frequency = value;
+                    if (value == RecurrenceFrequency.biweekly ||
+                        value == RecurrenceFrequency.semimonthly) {
+                      _intervalController.text = '1';
+                    }
+                  });
                 },
               ),
               const SizedBox(height: 12),
               TextField(
                 key: const Key('recurrence_interval_field'),
                 controller: _intervalController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Interval',
-                  hintText: 'Every N periods (usually 1)',
+                  helperText: _intervalHelper,
+                  helperMaxLines: 2,
                 ),
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -296,6 +339,31 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
                       icon: const Icon(Icons.close, size: 18),
                     ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              Builder(
+                builder: (context) {
+                  final preview = _previewDates;
+                  final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.onSurfaceMuted,
+                      );
+                  if (preview.isEmpty) {
+                    return Text(
+                      key: const Key('recurrence_preview_empty'),
+                      'No register rows in the next '
+                      '~${RecurrenceMaterializer.defaultHorizonDays} days '
+                      'with these settings.',
+                      style: style,
+                    );
+                  }
+                  final labels = preview.map(_dateLabel).join(', ');
+                  return Text(
+                    key: const Key('recurrence_preview'),
+                    'Will add ${preview.length} register '
+                    'row${preview.length == 1 ? '' : 's'}: $labels',
+                    style: style,
+                  );
+                },
               ),
               SwitchListTile(
                 key: const Key('recurrence_active_switch'),

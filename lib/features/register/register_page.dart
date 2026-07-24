@@ -5,6 +5,7 @@ import '../../auth/auth_service.dart';
 import '../../data/account.dart';
 import '../../data/account_repository.dart';
 import '../../data/money.dart';
+import '../../data/recurrence_materializer.dart';
 import '../../data/transaction.dart';
 import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
@@ -40,11 +41,42 @@ class _RegisterPageState extends State<RegisterPage> {
   RegisterFilter _filter = const RegisterFilter();
   final FocusNode _searchFocus = FocusNode();
   bool _showRecurring = false;
+  String? _lastMaterializedAccountId;
 
   @override
   void dispose() {
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _materializeIfNeeded(String accountId) {
+    final session = widget.auth?.session;
+    if (session == null || _lastMaterializedAccountId == accountId) {
+      return;
+    }
+    // Avoid writing the DB / mutating state synchronously during build.
+    _lastMaterializedAccountId = accountId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.auth?.session == null) {
+        return;
+      }
+      if (_lastMaterializedAccountId != accountId) {
+        return;
+      }
+      try {
+        RecurrenceMaterializer(widget.auth!.session!).materializeAccount(
+          accountId,
+        );
+        if (mounted) {
+          setState(() {});
+        }
+      } on Object catch (e) {
+        _lastMaterializedAccountId = null;
+        if (mounted) {
+          setState(() => _error = e.toString());
+        }
+      }
+    });
   }
 
   TransactionRepository? get _transactions {
@@ -77,6 +109,7 @@ class _RegisterPageState extends State<RegisterPage> {
           amountCents: result.amountCents,
         ),
       );
+      _lastMaterializedAccountId = null;
       setState(() => _error = null);
     } on Object catch (e) {
       setState(() => _error = e.toString());
@@ -218,7 +251,10 @@ class _RegisterPageState extends State<RegisterPage> {
       return RecurrencePage(
         auth: auth,
         accountId: accountId,
-        onClose: () => setState(() => _showRecurring = false),
+        onClose: () => setState(() {
+          _showRecurring = false;
+          _lastMaterializedAccountId = null;
+        }),
       );
     }
 
@@ -234,7 +270,7 @@ class _RegisterPageState extends State<RegisterPage> {
         final txs = TransactionRepository(session);
         account = accounts.getById(accountId);
         if (account != null) {
-          // Always scope by the widget account id (not cached state).
+          _materializeIfNeeded(accountId);
           metrics = txs.metricsFor(accountId);
           entries = txs.listRegisterEntries(accountId);
           visible = applyRegisterFilter(entries, _filter);
