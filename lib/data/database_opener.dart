@@ -83,6 +83,11 @@ class DatabaseOpener {
         version = 4;
         continue;
       }
+      if (version == 4) {
+        _migrateV4ToV5(db);
+        version = 5;
+        continue;
+      }
       throw DatabaseMigrationException(
         'No migration path from schema v$version to v$kSchemaVersion',
       );
@@ -117,6 +122,9 @@ class DatabaseOpener {
         db.execute(sql);
       }
       for (final sql in SchemaV4.migrationStatements) {
+        db.execute(sql);
+      }
+      for (final sql in SchemaV5.migrationStatements) {
         db.execute(sql);
       }
       db.execute('INSERT INTO schema_version (version) VALUES (?)', [
@@ -197,6 +205,20 @@ class DatabaseOpener {
         db.execute(sql);
       }
       db.execute('UPDATE schema_version SET version = ?', [4]);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  static void _migrateV4ToV5(Database db) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final sql in SchemaV5.migrationStatements) {
+        db.execute(sql);
+      }
+      db.execute('UPDATE schema_version SET version = ?', [5]);
       db.execute('COMMIT');
     } on Object {
       db.execute('ROLLBACK');

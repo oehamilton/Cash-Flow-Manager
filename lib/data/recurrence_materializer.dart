@@ -137,6 +137,10 @@ class RecurrenceMaterializer {
     try {
       for (final date in dates) {
         final key = instanceKey(rule.id, date);
+        if (_isSkipped(rule.id, key)) {
+          skipped++;
+          continue;
+        }
         final existing = _db.select(
           '''
 SELECT id FROM transactions
@@ -194,6 +198,9 @@ INSERT INTO transactions (
             pairId != null &&
             destAmount != null) {
           final destKey = counterpartInstanceKey(rule.id, date);
+          if (_isSkipped(rule.id, destKey)) {
+            continue;
+          }
           final destExisting = _db.select(
             '''
 SELECT id FROM transactions
@@ -273,4 +280,65 @@ WHERE id = ?
 
   static String counterpartInstanceKey(String ruleId, DateTime date) =>
       '$ruleId:${RecurrenceSchedule.formatDate(date)}:xfer';
+
+  bool _isSkipped(String ruleId, String instanceKey) {
+    final rows = _db.select(
+      '''
+SELECT 1 AS ok FROM recurrence_instance_skips
+WHERE recurrence_rule_id = ? AND instance_key = ?
+LIMIT 1
+''',
+      [ruleId, instanceKey],
+    );
+    return rows.isNotEmpty;
+  }
+
+  /// Records that a generated occurrence must not be rematerialized.
+  ///
+  /// For transfer pairs, both the source and `:xfer` keys are skipped.
+  static void recordSkipForTransactions(
+    Database db, {
+    required Transaction primary,
+    Transaction? counterpart,
+  }) {
+    final ruleId =
+        primary.recurrenceRuleId ?? counterpart?.recurrenceRuleId;
+    if (ruleId == null) {
+      return;
+    }
+    final generated = primary.isRecurringGenerated ||
+        (counterpart?.isRecurringGenerated ?? false);
+    if (!generated) {
+      return;
+    }
+
+    final keys = <String>{};
+    for (final tx in [primary, if (counterpart != null) counterpart]) {
+      final key = tx.recurrenceInstanceKey;
+      if (key == null || key.isEmpty) {
+        continue;
+      }
+      keys.add(key);
+      if (key.endsWith(':xfer')) {
+        keys.add(key.substring(0, key.length - ':xfer'.length));
+      } else {
+        keys.add('$key:xfer');
+      }
+    }
+    if (keys.isEmpty) {
+      return;
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    for (final key in keys) {
+      db.execute(
+        '''
+INSERT OR IGNORE INTO recurrence_instance_skips (
+  recurrence_rule_id, instance_key, skipped_at
+) VALUES (?, ?, ?)
+''',
+        [ruleId, key, now],
+      );
+    }
+  }
 }

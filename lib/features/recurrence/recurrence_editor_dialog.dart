@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../data/account.dart';
 import '../../data/money.dart';
+import '../../data/payee_suggestion.dart';
 import '../../data/recurrence_frequency.dart';
 import '../../data/recurrence_materializer.dart';
 import '../../data/recurrence_rule.dart';
@@ -41,24 +41,24 @@ class RecurrenceEditorDialog extends StatefulWidget {
   const RecurrenceEditorDialog({
     super.key,
     this.initial,
-    this.transferAccounts = const [],
+    this.suggestions = const [],
   });
 
   final RecurrenceRule? initial;
 
-  /// Other accounts available as transfer targets (exclude current).
-  final List<Account> transferAccounts;
+  /// Same account / managed / history suggestions as the register editor.
+  final List<PayeeSuggestion> suggestions;
 
   static Future<RecurrenceEditorResult?> show(
     BuildContext context, {
     RecurrenceRule? initial,
-    List<Account> transferAccounts = const [],
+    List<PayeeSuggestion> suggestions = const [],
   }) {
     return showDialog<RecurrenceEditorResult>(
       context: context,
       builder: (context) => RecurrenceEditorDialog(
         initial: initial,
-        transferAccounts: transferAccounts,
+        suggestions: suggestions,
       ),
     );
   }
@@ -68,7 +68,6 @@ class RecurrenceEditorDialog extends StatefulWidget {
 }
 
 class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
-  late final TextEditingController _payeeController;
   late final TextEditingController _memoController;
   late final TextEditingController _paymentController;
   late final TextEditingController _depositController;
@@ -78,6 +77,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   DateTime? _endDate;
   late bool _autoClear;
   late bool _isActive;
+  String _payeeText = '';
   String? _linkedAccountId;
   String? _error;
 
@@ -89,7 +89,23 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   void initState() {
     super.initState();
     final initial = widget.initial;
-    _payeeController = TextEditingController(text: initial?.payee ?? '');
+    _payeeText = initial?.payee ?? '';
+    _linkedAccountId = initial?.linkedAccountId;
+    if (_linkedAccountId != null) {
+      final match = widget.suggestions.whereType<AccountPayeeSuggestion>().where(
+            (s) => s.accountId == _linkedAccountId,
+          );
+      if (match.isNotEmpty) {
+        _payeeText = match.first.label;
+      }
+    } else if (_payeeText.isNotEmpty) {
+      final managed = widget.suggestions.whereType<ManagedPayeeSuggestion>().where(
+            (s) => s.label.toLowerCase() == _payeeText.toLowerCase(),
+          );
+      if (managed.isNotEmpty) {
+        _payeeText = managed.first.label;
+      }
+    }
     _memoController = TextEditingController(text: initial?.memo ?? '');
     final amount = initial?.amountCents ?? 0;
     _paymentController = TextEditingController(
@@ -107,12 +123,10 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
     _endDate = initial?.endDate;
     _autoClear = initial?.autoClear ?? false;
     _isActive = initial?.isActive ?? true;
-    _linkedAccountId = initial?.linkedAccountId;
   }
 
   @override
   void dispose() {
-    _payeeController.dispose();
     _memoController.dispose();
     _paymentController.dispose();
     _depositController.dispose();
@@ -161,6 +175,32 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
     );
   }
 
+  void _onPayeeTextChanged(String value) {
+    _payeeText = value;
+    final stillAccount = widget.suggestions
+        .whereType<AccountPayeeSuggestion>()
+        .any((s) => s.label == value || s.account.name == value);
+    if (!stillAccount) {
+      _linkedAccountId = null;
+    }
+  }
+
+  void _onPayeeSelected(PayeeSuggestion suggestion) {
+    setState(() {
+      switch (suggestion) {
+        case AccountPayeeSuggestion(:final accountId):
+          _linkedAccountId = accountId;
+          _payeeText = suggestion.label;
+        case ManagedPayeeSuggestion():
+          _linkedAccountId = null;
+          _payeeText = suggestion.label;
+        case TextPayeeSuggestion(:final name):
+          _linkedAccountId = null;
+          _payeeText = name;
+      }
+    });
+  }
+
   void _submit() {
     setState(() => _error = null);
     try {
@@ -180,18 +220,22 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
       if (interval == null || interval < 1) {
         throw const FormatException('Interval must be a whole number ≥ 1');
       }
-      var payee = _payeeController.text.trim();
-      if (payee.isEmpty && _linkedAccountId != null) {
-        final match = widget.transferAccounts.where(
-          (a) => a.id == _linkedAccountId,
-        );
+
+      var payee = _payeeText.trim();
+      if (_linkedAccountId != null) {
+        final match = widget.suggestions
+            .whereType<AccountPayeeSuggestion>()
+            .where((s) => s.accountId == _linkedAccountId);
         if (match.isNotEmpty) {
-          payee = match.first.name;
+          payee = match.first.account.name;
         }
+      } else if (payee.startsWith('→ ')) {
+        payee = payee.substring(2).trim();
       }
       if (payee.isEmpty) {
         throw const FormatException('Payee is required');
       }
+
       final hadLink = widget.initial?.linkedAccountId != null;
       Navigator.of(context).pop(
         RecurrenceEditorResult(
@@ -240,6 +284,7 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.initial != null;
+    final isTransfer = _linkedAccountId != null;
     return AlertDialog(
       key: const Key('recurrence_editor_dialog'),
       backgroundColor: AppColors.surface,
@@ -251,54 +296,87 @@ class _RecurrenceEditorDialogState extends State<RecurrenceEditorDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                key: const Key('recurrence_payee_field'),
-                controller: _payeeController,
-                autofocus: true,
-                decoration: const InputDecoration(labelText: 'Payee'),
-                textInputAction: TextInputAction.next,
-              ),
-              if (widget.transferAccounts.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String?>(
-                  key: const Key('recurrence_transfer_account'),
-                  // ignore: deprecated_member_use
-                  value: widget.transferAccounts.any(
-                    (a) => a.id == _linkedAccountId,
-                  )
-                      ? _linkedAccountId
-                      : null,
-                  decoration: const InputDecoration(
-                    labelText: 'Transfer to account',
-                    helperText:
-                        'Optional — creates a matching entry on the other register',
-                    helperMaxLines: 2,
+              if (isTransfer)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    key: const Key('recurrence_transfer_hint'),
+                    'Transfer — each instance will also post on the other account.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.primaryBright,
+                        ),
                   ),
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('None (normal recurring)'),
-                    ),
-                    for (final account in widget.transferAccounts)
-                      DropdownMenuItem(
-                        value: account.id,
-                        child: Text('${account.name} (${account.type.label})'),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _linkedAccountId = value;
-                      if (value != null &&
-                          _payeeController.text.trim().isEmpty) {
-                        final match = widget.transferAccounts.firstWhere(
-                          (a) => a.id == value,
-                        );
-                        _payeeController.text = match.name;
-                      }
-                    });
-                  },
                 ),
-              ],
+              Autocomplete<PayeeSuggestion>(
+                optionsBuilder: (textEditingValue) {
+                  final q = textEditingValue.text.trim().toLowerCase();
+                  if (q.isEmpty) {
+                    return widget.suggestions.take(12);
+                  }
+                  return widget.suggestions
+                      .where(
+                        (s) =>
+                            s.label.toLowerCase().contains(q) ||
+                            (s is AccountPayeeSuggestion &&
+                                s.account.name.toLowerCase().contains(q)),
+                      )
+                      .take(12);
+                },
+                displayStringForOption: (s) => s.label,
+                initialValue: TextEditingValue(text: _payeeText),
+                onSelected: _onPayeeSelected,
+                fieldViewBuilder: (
+                  context,
+                  textEditingController,
+                  focusNode,
+                  onFieldSubmitted,
+                ) {
+                  return TextField(
+                    key: const Key('recurrence_payee_field'),
+                    controller: textEditingController,
+                    focusNode: focusNode,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Payee',
+                      hintText: 'Account, payee, or type freely',
+                    ),
+                    textInputAction: TextInputAction.next,
+                    onChanged: _onPayeeTextChanged,
+                    onSubmitted: (_) => onFieldSubmitted(),
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      color: AppColors.surface,
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 240),
+                        child: ListView.builder(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          itemBuilder: (context, index) {
+                            final option = options.elementAt(index);
+                            final icon = switch (option) {
+                              AccountPayeeSuggestion() => Icons.swap_horiz,
+                              ManagedPayeeSuggestion() => Icons.person_outline,
+                              TextPayeeSuggestion() => Icons.history,
+                            };
+                            return ListTile(
+                              dense: true,
+                              leading: Icon(icon, size: 18),
+                              title: Text(option.label),
+                              onTap: () => onSelected(option),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: 12),
               TextField(
                 key: const Key('recurrence_memo_field'),

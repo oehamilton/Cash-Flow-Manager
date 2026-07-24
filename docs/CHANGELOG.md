@@ -8,6 +8,11 @@ All notable changes to this project are documented here.
 
 - Payees is a left-rail destination (not nested under Settings)
 - Register header includes an account dropdown to switch registers
+- Recurring editor uses the same account/payee autocomplete as the register (account payee = transfer)
+
+### Fixed
+
+- Deleting a recurring register occurrence (including transfers) records a skip so rematerialize does not recreate it (schema v5)
 
 ## [6.3.0] — 2026-07-24
 

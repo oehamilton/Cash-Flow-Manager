@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../auth/auth_service.dart';
-import '../../data/account.dart';
 import '../../data/account_repository.dart';
 import '../../data/money.dart';
+import '../../data/payee_suggestion.dart';
 import '../../data/recurrence_rule.dart';
 import '../../data/recurrence_rule_repository.dart';
 import '../../data/transaction.dart';
@@ -79,15 +79,14 @@ class _RecurrencePageState extends State<RecurrencePage> {
     });
   }
 
-  List<Account> _transferAccounts() {
+  List<PayeeSuggestion> _payeeSuggestions() {
     final session = widget.auth.session;
     if (session == null) {
       return const [];
     }
-    return AccountRepository(session)
-        .listAccounts()
-        .where((a) => a.id != widget.accountId)
-        .toList();
+    return TransactionRepository(session).combinedPayeeSuggestions(
+      widget.accountId,
+    );
   }
 
   Future<void> _add() async {
@@ -97,7 +96,7 @@ class _RecurrencePageState extends State<RecurrencePage> {
     }
     final result = await RecurrenceEditorDialog.show(
       context,
-      transferAccounts: _transferAccounts(),
+      suggestions: _payeeSuggestions(),
     );
     if (result == null || !mounted) {
       return;
@@ -153,7 +152,7 @@ class _RecurrencePageState extends State<RecurrencePage> {
     final result = await RecurrenceEditorDialog.show(
       context,
       initial: rule,
-      transferAccounts: _transferAccounts(),
+      suggestions: _payeeSuggestions(),
     );
     if (result == null || !mounted) {
       return;

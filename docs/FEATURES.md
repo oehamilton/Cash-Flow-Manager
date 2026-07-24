@@ -40,5 +40,5 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-5.4 | Full regression + Windows 11 checklist | 5.4 | `deferred` (parked) | |
 | F-6.1 | Linked transfers (account-as-payee, paired edit/delete) | 6.1 | `done` | `test/transfer_amounts_test.dart`, `test/transfer_repository_test.dart` |
 | F-6.2 | Payee directory + autocomplete (left-rail Payees) | 6.2 | `done` | `test/payee_repository_test.dart`, `test/app_destination_test.dart`, `test/payees_nav_test.dart` |
-| F-6.3 | Recurring transfers + jump-to-other-leg | 6.3 | `done` | `test/recurrence_transfer_materializer_test.dart` |
+| F-6.3 | Recurring transfers + jump-to-other-leg | 6.3 | `done` | `test/recurrence_transfer_materializer_test.dart`, `test/recurrence_skip_deleted_test.dart` |
 | F-7 | Android + sync safety | 7 | `planned` | |

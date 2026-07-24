@@ -278,6 +278,10 @@ WHERE recurrence_rule_id = ?
 ''',
         [id],
       );
+      _db.execute(
+        'DELETE FROM recurrence_instance_skips WHERE recurrence_rule_id = ?',
+        [id],
+      );
       _db.execute('DELETE FROM recurrence_rules WHERE id = ?', [id]);
 
       _audit.append(

@@ -9,6 +9,7 @@ import 'database_session.dart';
 import 'forecast_trough.dart';
 import 'payee_repository.dart';
 import 'payee_suggestion.dart';
+import 'recurrence_materializer.dart';
 import 'transaction.dart';
 import 'transfer_amounts.dart';
 
@@ -988,6 +989,13 @@ WHERE id = ?
 
     _db.execute('BEGIN IMMEDIATE');
     try {
+      // Prevent rematerialize from recreating this occurrence (and its pair).
+      RecurrenceMaterializer.recordSkipForTransactions(
+        _db,
+        primary: existing,
+        counterpart: counterpart,
+      );
+
       if (counterpart != null) {
         _db.execute('DELETE FROM transactions WHERE id = ?', [counterpart.id]);
         _audit.append(
@@ -1026,6 +1034,8 @@ WHERE id = ?
           'source': existing.source,
           if (existing.transferPairId != null)
             'transfer_pair_id': existing.transferPairId,
+          if (existing.recurrenceInstanceKey != null)
+            'recurrence_instance_key': existing.recurrenceInstanceKey,
         },
       );
       _db.execute('COMMIT');
