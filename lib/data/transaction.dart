@@ -88,6 +88,42 @@ abstract final class TransactionSource {
   static const openingBalance = 'opening_balance';
 }
 
+/// Ledger row with computed running balance (Phase 2.2).
+class RegisterEntry {
+  const RegisterEntry({
+    required this.transaction,
+    required this.runningBalanceCents,
+  });
+
+  final Transaction transaction;
+  final int runningBalanceCents;
+
+  /// Inflow amount for Credit column (null when not a credit).
+  int? get creditCents {
+    final amount = transaction.amountCents;
+    return amount > 0 ? amount : null;
+  }
+
+  /// Outflow amount for Debit column (positive display cents; null when none).
+  int? get debitCents {
+    final amount = transaction.amountCents;
+    return amount < 0 ? -amount : null;
+  }
+}
+
+/// Walks chronological transactions and attaches a running balance after each.
+List<RegisterEntry> withRunningBalances(Iterable<Transaction> transactions) {
+  var running = 0;
+  final entries = <RegisterEntry>[];
+  for (final tx in transactions) {
+    running += tx.amountCents;
+    entries.add(
+      RegisterEntry(transaction: tx, runningBalanceCents: running),
+    );
+  }
+  return entries;
+}
+
 /// Fields required to create a user-entered transaction (Phase 2.1).
 class TransactionDraft {
   const TransactionDraft({

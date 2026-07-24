@@ -41,6 +41,11 @@ ORDER BY date ASC, id ASC
     return rows.map(Transaction.fromRow).toList();
   }
 
+  /// Chronological rows with running balance after each transaction.
+  List<RegisterEntry> listRegisterEntries(String accountId) {
+    return withRunningBalances(listForAccount(accountId));
+  }
+
   /// Distinct historical payees for autocomplete (case-insensitive prefix).
   List<String> payeeSuggestions(
     String accountId, {

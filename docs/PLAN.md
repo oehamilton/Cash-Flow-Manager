@@ -404,7 +404,7 @@ Worth deciding now so they don’t surprise us mid-build:
 
 ### Phase 2 — Register core
 - **2.1** Transaction CRUD scoped by `account_id` (+ payee autocomplete from history) (**write audit_log** on create/update/delete)
-- **2.2** Running balance column + ordering (lazy/virtualized list from the start)
+- **2.2** Payment / Deposit columns + running balance + ordering (lazy/virtualized list from the start)
 - **2.3** Clear / reconcile; protect cleared edits; **statement ending-balance reconcile** (**audit** clear/unclear / reconcile)
 - **2.4** Sticky header: reconciled + today (trough placeholders) — **register layout gate**
 - **2.5** Row styles: cleared vs uncleared
