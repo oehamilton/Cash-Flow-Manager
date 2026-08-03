@@ -20,6 +20,7 @@ All notable changes to this project are documented here.
 - Open / switch active vault from Settings or Unlock (F-0.5b); Hello credentials scoped per vault path
 - Restore vault from backup (copy into Documents\\CashFlowManager\\Restored, then switch)
 - Create new vault under Documents/CashFlowManager/<Name> for separate books (Personal vs Business)
+- Recent vaults list on Unlock and Settings (labels, rename, remove from list)
 
 ### Fixed
 

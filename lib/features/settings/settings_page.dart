@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../../auth/auth_service.dart';
 import '../../auth/vault_backup_service.dart';
+import '../../auth/recent_vault_store.dart';
 import '../../auth/vault_switch_service.dart';
 import '../../core/app_info.dart';
 import '../../data/account.dart';
@@ -18,6 +19,7 @@ import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../about/about_dialog.dart';
+import '../vault/recent_vaults_panel.dart';
 import '../vault/vault_create_flow.dart';
 import '../vault/vault_file_picker.dart';
 import '../vault/vault_restore_flow.dart';
@@ -64,6 +66,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late int _lockTimeoutMinutes;
   int _auditRetentionDays = 365;
   String? _exportAccountId;
+  List<RecentVaultEntry> _recent = const [];
 
   static const _timeoutChoices = <int>[
     0, // never
@@ -85,6 +88,7 @@ class _SettingsPageState extends State<SettingsPage> {
     super.initState();
     _lockTimeoutMinutes = widget.lockTimeoutMinutes;
     _loadAuditRetention();
+    _loadRecentVaults();
   }
 
   void _loadAuditRetention() {
@@ -95,6 +99,18 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     _auditRetentionDays =
         AppSettingsRepository(session).auditRetentionDays();
+  }
+
+  Future<void> _loadRecentVaults() async {
+    final path = widget.databasePath;
+    if (path != null) {
+      await RecentVaultStore.record(path);
+    }
+    final recent = await RecentVaultStore.list();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _recent = recent);
   }
 
   @override
@@ -212,6 +228,40 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     }
     await createNew(path);
+  }
+
+  Future<void> _selectRecentVault(RecentVaultEntry entry) async {
+    final switchVault = widget.onSwitchVault;
+    if (switchVault == null) {
+      throw StateError('Vault switching is unavailable');
+    }
+    final path = await VaultSwitchService.ensureComplete(entry.path);
+    await switchVault(path);
+  }
+
+  Future<void> _renameRecentVault(RecentVaultEntry entry) async {
+    final label = await promptRecentVaultLabel(
+      context,
+      initialLabel: entry.label,
+    );
+    if (label == null || label.isEmpty) {
+      return;
+    }
+    await RecentVaultStore.rename(entry.path, label);
+    await _loadRecentVaults();
+  }
+
+  Future<void> _removeRecentVault(RecentVaultEntry entry) async {
+    await RecentVaultStore.remove(entry.path);
+    await _loadRecentVaults();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _message = 'Removed "${entry.label}" from recent vaults '
+          '(files were not deleted).';
+      _messageIsError = false;
+    });
   }
 
   Future<void> _backupVault() async {
@@ -401,6 +451,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   icon: const Icon(Icons.create_new_folder_outlined),
                   label: const Text('Create new vault…'),
                 ),
+                if (_recent.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  RecentVaultsPanel(
+                    entries: _recent,
+                    activePath: widget.databasePath,
+                    onSelect: (entry) => _run(() => _selectRecentVault(entry)),
+                    onRename: (entry) => _run(() => _renameRecentVault(entry)),
+                    onRemove: (entry) => _run(() => _removeRecentVault(entry)),
+                  ),
+                ],
               ],
               const SizedBox(height: 24),
               SwitchListTile(
