@@ -4,12 +4,14 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [6.4.0] — 2026-08-03
+
 ### Changed
 
 - Payees is a left-rail destination (not nested under Settings)
 - Register header includes an account dropdown to switch registers
 - Recurring editor uses the same account/payee autocomplete as the register (account payee = transfer)
-- Register All filter scrolls to the last cleared / first open boundary (not the oldest rows)
+- Register defaults to Open rows; All scrolls to the last cleared / first open boundary; Open/Clr jump to top
 - Register search accepts dates/weeks/months (`2026-08-03`, `8/3/2026`, `2026-08`, `Aug 2026`, `this week`, `week of 8/3/2026`, `2026-W32`, …) in addition to payee/memo
 
 ### Added
