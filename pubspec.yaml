@@ -87,15 +87,21 @@ flutter:
 # Or: .\tool\build_release.ps1 -Msix
 msix_config:
   display_name: Cash Flow Manager
-  publisher_display_name: oehamilton
-  identity_name: oehamilton.CashFlowManager
+  publisher_display_name: Project8X
+  identity_name: Project8X.CashFlowManager
+  # Must match the signing cert subject (tool/new_code_signing_cert.ps1 → CN=Project8X).
+  # build_release.ps1 overrides this from the PFX Subject at pack time.
+  publisher: CN=Project8X
   msix_version: 6.3.0.0
-  # Override per host via: dart run msix:create --architecture arm64
+  # Prefer .\tool\build_release.ps1 -Msix (sets --architecture + PFX signing).
+  # On Surface / Snapdragon hosts that is arm64; on Intel/AMD it is x64.
   architecture: x64
   logo_path: windows/runner/resources/app_icon.ico
   languages: en-us
   capabilities: internetClient
   output_path: build/windows/msix
   output_name: CashFlowManager
-  # Avoid interactive cert prompt in CI/scripts; sideload still uses test cert signing.
+  # Signing: pass certificate via build_release.ps1 / CLI (secrets/*.pfx, gitignored).
+  # Do not auto-install the cert on the build machine; end users run
+  # tool/install_trusted_publisher.ps1 once (Trusted People) — no Developer Mode.
   install_certificate: false

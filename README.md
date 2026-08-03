@@ -53,25 +53,30 @@ CI runs `flutter analyze` + `flutter test` on every push/PR (`.github/workflows/
 
 ## Release build (Windows)
 
-Prefer an **x64** (Intel/AMD) host for the default ship build; ARM64 hosts produce native ARM64 binaries (see [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md)).
+Build on a machine that matches the install target: **x64** for Intel/AMD PCs, **arm64** on a Surface Pro / Snapdragon host for a native ARM installer (see [`docs/DEPENDENCIES.md`](docs/DEPENDENCIES.md)).
 
 ```powershell
+# One-time on the build machine: Project8X signing cert (PFX stays in secrets/)
+.\tool\new_code_signing_cert.ps1
+
 # Release folder under build\windows\<arch>\runner\Release
 .\tool\build_release.ps1
 
-# Also produce an MSIX installer under build\windows\msix\
+# Signed MSIX for this host (CashFlowManager-arm64.msix on Surface / ARM)
 .\tool\build_release.ps1 -Msix
+
+# Explicit native ARM64 package (must run on an ARM64 Windows host)
+.\tool\build_release.ps1 -Msix -Architecture arm64
 ```
 
-Or manually:
+**End users (no Developer Mode):** trust the publisher once, then install:
 
 ```powershell
-flutter build windows --release
-# Use arm64 on ARM hosts; x64 is the default ship target
-dart run msix:create --build-windows false --architecture x64 --install-certificate false
+.\tool\install_trusted_publisher.ps1
+Add-AppxPackage -Path build\windows\msix\CashFlowManager-arm64.msix
 ```
 
-Sideload the `.msix` (Developer Mode / trusted certificate as required by Windows). Store publishing needs Partner Center identity — not configured here.
+Store / paid CA signing is a later upgrade. Partner Center identity is not configured here.
 
 ## Development process
 

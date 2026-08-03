@@ -143,12 +143,40 @@ Artifacts land under `build\windows\<arch>\runner\...`
 
 ### Release + MSIX (Phase 5.3)
 
+**Signing cert (once per build machine):**
+
 ```powershell
-.\tool\build_release.ps1          # analyze, test, release build
-.\tool\build_release.ps1 -Msix    # same + MSIX under build\windows\msix\
+.\tool\new_code_signing_cert.ps1
 ```
 
-Uses the `msix` pub.dev package (`msix_config` in `pubspec.yaml`). The release script passes `--install-certificate false` so packaging stays non-interactive; sideload still needs a trusted cert on the target PC if Windows requires it. On ARM64 hosts the script sets `--architecture arm64` to match `build\windows\arm64\...`.
+Creates a Project8X code-signing PFX under `secrets/` (gitignored) and a public `.cer` under `packaging/` (safe to ship). See [`secrets/README.md`](../secrets/README.md).
+
+**Build signed package:**
+
+```powershell
+.\tool\build_release.ps1                              # analyze, test, release build
+.\tool\build_release.ps1 -Msix                        # signed MSIX for this host's arch
+.\tool\build_release.ps1 -Msix -Architecture arm64    # native ARM64 (Surface / Snapdragon)
+.\tool\build_release.ps1 -Msix -Architecture x64      # Intel/AMD
+```
+
+Uses the `msix` pub.dev package (`msix_config` in `pubspec.yaml`). The script:
+
+- Builds a **release** Windows app for the **host** architecture (Flutter does not cross-compile Windows reliably).
+- **Signs** the MSIX with the Project8X PFX (`CFM_MSIX_CERT_PATH` / `CFM_MSIX_CERT_PASSWORD`, or `secrets/…`).
+- Writes `build\windows\msix\CashFlowManager-<arch>.msix` plus `Project8X-CodeSigning.cer`.
+- Fails clearly if the signing cert is missing (no silent unsigned release MSIX).
+
+**End-user install (no Developer Mode):** trust the publisher cert once (admin), then install the MSIX:
+
+```powershell
+.\tool\install_trusted_publisher.ps1
+Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-arm64.msix
+```
+
+Or double-click the `.msix` after the cert is trusted. Developer Mode remains useful for **Flutter development** (plugin symlinks), not for end-user installs.
+
+**Surface Pro / Windows on ARM:** run the arm64 build **on the tablet** (or any Snapdragon Windows host) for a native ARM64 binary.
 
 ## CI / second machine tips
 

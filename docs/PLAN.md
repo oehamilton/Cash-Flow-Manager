@@ -431,7 +431,11 @@ Worth deciding now so they don’t surprise us mid-build:
 ### Phase 5 — Polish & ship
 - **5.1** Validation, empty states, confirmations, idle lock, **Activity log viewer** (read-only `audit_log` in Settings), **final visual polish**
 - **5.2** Backup/export encrypted DB (+ optional CSV register export)
-- **5.3** Windows release build (exe/MSIX; MSI if required) — prefer **x64** build on Intel/AMD host; optional native ARM64 build on ARM host (see [`DEPENDENCIES.md`](DEPENDENCIES.md)) — **parked** (resume after Phase 6)
+- **5.3** Windows release build (exe/MSIX; MSI if required) via [`tool/build_release.ps1`](../tool/build_release.ps1):
+  - Native **x64** (Intel/AMD host) and **arm64** (Surface / Snapdragon host); see [`DEPENDENCIES.md`](DEPENDENCIES.md)
+  - **Code-signed MSIX** with Project8X publisher identity (PFX; private key not in git)
+  - **Trusted-cert install path:** end users trust Project8X `.cer` once (admin), then install `.msix` **without Developer Mode** (`tool/install_trusted_publisher.ps1`)
+  - Microsoft Store / paid OV–EV CA signing is a later upgrade (skips even the one-time `.cer` trust), not a v1 blocker
 - **5.4** Full regression pass + manual Windows 11 checklist — **parked**
 - **Exit:** daily-driver installable build
 
