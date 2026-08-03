@@ -25,6 +25,7 @@ abstract final class AuditAction {
   static const reconcile = 'reconcile';
   static const backupVault = 'backup_vault';
   static const switchVault = 'switch_vault';
+  static const restoreVault = 'restore_vault';
   static const exportCsv = 'export_csv';
 }
 

@@ -8,6 +8,7 @@ import 'vault_location_store.dart';
 class VaultPaths {
   static const String defaultFileName = 'vault.cfm.db';
   static const String appFolderName = 'CashFlowManager';
+  static const String restoredFolderName = 'Restored';
 
   /// Active vault path (saved preference) or default under AppData.
   static Future<String> activeDatabasePath() async {
@@ -41,8 +42,36 @@ class VaultPaths {
     }
   }
 
+  /// `%USERPROFILE%/Documents/CashFlowManager` on Windows (easy to find, survives MSIX).
+  static String documentsAppRoot() {
+    final override = debugDocumentsRootOverride;
+    if (override != null) {
+      return override();
+    }
+    final home = Platform.environment['USERPROFILE'] ??
+        Platform.environment['HOME'] ??
+        Directory.systemTemp.path;
+    return p.join(home, 'Documents', appFolderName);
+  }
+
+  /// Suggested path when restoring a backup copy into Documents.
+  static String suggestedRestoreDatabasePath({DateTime? asOf}) {
+    final day = asOf ?? DateTime.now();
+    final y = day.year.toString().padLeft(4, '0');
+    final m = day.month.toString().padLeft(2, '0');
+    final d = day.day.toString().padLeft(2, '0');
+    return p.join(
+      documentsAppRoot(),
+      restoredFolderName,
+      'vault-restored-$y$m$d.cfm.db',
+    );
+  }
+
   /// Test-only override for [appDataRoot].
   static String Function()? debugAppDataRootOverride;
+
+  /// Test-only override for [documentsAppRoot].
+  static String Function()? debugDocumentsRootOverride;
 
   static String appDataRoot() {
     final override = debugAppDataRootOverride;

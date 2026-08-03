@@ -19,6 +19,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../about/about_dialog.dart';
 import '../vault/vault_file_picker.dart';
+import '../vault/vault_restore_flow.dart';
 import 'activity_log_panel.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -162,6 +163,28 @@ class _SettingsPageState extends State<SettingsPage> {
     // Validate before tearing down the session; AuthGate activates + locks.
     final path = await VaultSwitchService.ensureComplete(picked);
     await switchVault(path);
+  }
+
+  Future<void> _restoreVault() async {
+    final switchVault = widget.onSwitchVault;
+    if (switchVault == null) {
+      throw StateError('Vault restore is unavailable');
+    }
+    final restored = await runRestoreVaultFlow(context);
+    if (restored == null) {
+      return;
+    }
+    final session = widget.auth?.session;
+    if (session != null) {
+      AuditLogRepository(session).append(
+        category: AuditCategory.settings,
+        action: AuditAction.restoreVault,
+        summary: 'Restored vault from backup',
+        entityType: AuditEntityType.vault,
+        detail: {'to': restored},
+      );
+    }
+    await switchVault(restored);
   }
 
   Future<void> _backupVault() async {
@@ -410,6 +433,8 @@ class _SettingsPageState extends State<SettingsPage> {
               const SizedBox(height: 4),
               Text(
                 'Backup keeps the encrypted vault (database + meta). '
+                'Restore copies a backup into Documents\\CashFlowManager\\Restored '
+                '(recommended), then switches to it. '
                 'CSV is a plain-text register export for one account.',
                 style: textTheme.bodySmall?.copyWith(
                   color: AppColors.onSurfaceMuted,
@@ -423,6 +448,15 @@ class _SettingsPageState extends State<SettingsPage> {
                     : () => _run(_backupVault),
                 icon: const Icon(Icons.cloud_download_outlined),
                 label: const Text('Backup vault…'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                key: const Key('settings_restore_vault'),
+                onPressed: (_busy || widget.onSwitchVault == null)
+                    ? null
+                    : () => _run(_restoreVault),
+                icon: const Icon(Icons.settings_backup_restore_outlined),
+                label: const Text('Restore vault from backup…'),
               ),
               const SizedBox(height: 16),
               if (accounts.isNotEmpty)

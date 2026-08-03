@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cash_flow_manager/auth/vault_backup_service.dart';
 import 'package:cash_flow_manager/auth/vault_files.dart';
 import 'package:cash_flow_manager/auth/vault_meta.dart';
+import 'package:cash_flow_manager/auth/vault_paths.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -44,5 +45,34 @@ void main() {
     expect(await File('$dest.cfm.lock').exists(), isFalse);
     expect(await VaultFiles.isComplete(dest), isTrue);
     expect(await File(dest).length(), await File(source).length());
+  });
+
+  test('restoreEncryptedVault copies into a new Documents-style path', () async {
+    await harness.createUnlockedVault();
+    final source = harness.databasePath;
+
+    final destRoot = await Directory.systemTemp.createTemp('cfm_restore_docs_');
+    addTearDown(() async {
+      if (await destRoot.exists()) {
+        await destRoot.delete(recursive: true);
+      }
+    });
+    VaultPaths.debugDocumentsRootOverride = () => destRoot.path;
+    addTearDown(() => VaultPaths.debugDocumentsRootOverride = null);
+
+    final dest = VaultPaths.suggestedRestoreDatabasePath(
+      asOf: DateTime(2026, 8, 3),
+    );
+    expect(dest, contains('Restored'));
+    expect(p.basename(dest), 'vault-restored-20260803.cfm.db');
+
+    final restored = await VaultBackupService.restoreEncryptedVault(
+      sourceDatabasePath: source,
+      destDatabasePath: dest,
+    );
+    expect(restored, p.normalize(dest));
+    expect(await VaultFiles.isComplete(dest), isTrue);
+    // Backup source untouched.
+    expect(await VaultFiles.isComplete(source), isTrue);
   });
 }

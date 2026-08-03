@@ -8,6 +8,7 @@ import '../../data/database_exceptions.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../vault/vault_file_picker.dart';
+import '../vault/vault_restore_flow.dart';
 
 enum UnlockMode { create, unlock }
 
@@ -101,6 +102,41 @@ class _UnlockPageState extends State<UnlockPage> {
         return;
       }
       final activated = await VaultSwitchService.activate(picked);
+      await widget.onVaultSwitched?.call();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activePath = activated;
+        _passwordController.clear();
+      });
+      await _loadHelloFlags();
+    } on VaultSwitchException catch (e) {
+      if (mounted) {
+        setState(() => _error = e.message);
+      }
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _restoreVaultFromBackup() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final restored = await runRestoreVaultFlow(context);
+      if (restored == null) {
+        return;
+      }
+      final activated = await VaultSwitchService.activate(restored);
       await widget.onVaultSwitched?.call();
       if (!mounted) {
         return;
@@ -385,6 +421,11 @@ class _UnlockPageState extends State<UnlockPage> {
                         key: const Key('unlock_open_different_vault'),
                         onPressed: _busy ? null : _openDifferentVault,
                         child: const Text('Open different vault…'),
+                      ),
+                      TextButton(
+                        key: const Key('unlock_restore_vault'),
+                        onPressed: _busy ? null : _restoreVaultFromBackup,
+                        child: const Text('Restore vault from backup…'),
                       ),
                     ],
                   ],
