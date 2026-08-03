@@ -27,6 +27,8 @@ class _AuthGateState extends State<AuthGate> {
   bool _helloEnabled = false;
   bool _helloAvailable = false;
   bool _needsPrimary = false;
+  bool _creatingAdditional = false;
+  String? _additionalVaultPath;
 
   @override
   void initState() {
@@ -91,6 +93,8 @@ class _AuthGateState extends State<AuthGate> {
     setState(() {
       _vaultExists = true;
       _needsPrimary = needsPrimary;
+      _creatingAdditional = false;
+      _additionalVaultPath = null;
     });
     await _refreshHelloFlags();
   }
@@ -106,11 +110,49 @@ class _AuthGateState extends State<AuthGate> {
     await _bootstrap();
   }
 
+  /// Settings / Unlock: create another vault at [databasePath].
+  Future<void> _beginCreateNewVault(String databasePath) async {
+    if (_auth.isUnlocked) {
+      await _auth.lock();
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _creatingAdditional = true;
+      _additionalVaultPath = databasePath;
+      _needsPrimary = false;
+      _loading = false;
+    });
+  }
+
+  Future<void> _cancelCreateNewVault() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _creatingAdditional = false;
+      _additionalVaultPath = null;
+    });
+    await _bootstrap();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
         body: Center(child: Text('Loading…', key: Key('auth_loading'))),
+      );
+    }
+
+    if (_creatingAdditional) {
+      return SetupWizardPage(
+        key: const Key('setup_wizard_additional'),
+        auth: _auth,
+        mode: SetupWizardMode.additional,
+        initialDatabasePath: _additionalVaultPath,
+        onFinished: _onSetupFinished,
+        onCancel: _cancelCreateNewVault,
       );
     }
 
@@ -129,6 +171,7 @@ class _AuthGateState extends State<AuthGate> {
         mode: UnlockMode.unlock,
         onUnlocked: _onUnlocked,
         onVaultSwitched: _bootstrap,
+        onCreateNewVault: _beginCreateNewVault,
       );
     }
 
@@ -145,6 +188,7 @@ class _AuthGateState extends State<AuthGate> {
       auth: _auth,
       onLock: _lock,
       onSwitchVault: _switchVaultAndLock,
+      onCreateNewVault: _beginCreateNewVault,
       helloEnabled: _helloEnabled,
       helloAvailable: _helloAvailable,
       onToggleHello: (enable) async {

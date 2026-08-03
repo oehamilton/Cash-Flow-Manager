@@ -68,4 +68,16 @@ void main() {
     expect(a, isNot(b));
     expect(a, startsWith('cfm_hello_'));
   });
+
+  test('suggestedNewVaultDatabasePath uses Documents folder name', () {
+    VaultPaths.debugDocumentsRootOverride = () => r'C:\Docs\CashFlowManager';
+    expect(
+      VaultPaths.suggestedNewVaultDatabasePath(folderName: 'Business'),
+      p.join(r'C:\Docs\CashFlowManager', 'Business', 'vault.cfm.db'),
+    );
+    expect(
+      VaultPaths.sanitizeVaultFolderName(r'Acme/Corp'),
+      'Acme_Corp',
+    );
+  });
 }

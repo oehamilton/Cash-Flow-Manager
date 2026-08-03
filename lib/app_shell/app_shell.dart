@@ -24,6 +24,7 @@ class AppShell extends StatefulWidget {
     this.auth,
     this.onLock,
     this.onSwitchVault,
+    this.onCreateNewVault,
     this.helloEnabled = false,
     this.helloAvailable = false,
     this.onToggleHello,
@@ -36,6 +37,9 @@ class AppShell extends StatefulWidget {
 
   /// Activate another vault path, then lock and return to unlock.
   final Future<void> Function(String databasePath)? onSwitchVault;
+
+  /// Begin wizard to create another vault at [databasePath].
+  final Future<void> Function(String databasePath)? onCreateNewVault;
   final bool helloEnabled;
   final bool helloAvailable;
   final Future<void> Function(bool enable)? onToggleHello;
@@ -264,6 +268,7 @@ class _AppShellState extends State<AppShell> {
           lockTimeoutMinutes: _lockTimeoutMinutes,
           onLock: widget.onLock ?? () async {},
           onSwitchVault: widget.onSwitchVault,
+          onCreateNewVault: widget.onCreateNewVault,
           onToggleHello: widget.onToggleHello ?? (_) async {},
           onLockTimeoutChanged: (minutes) async {
             _idleLock.updateTimeout(minutes);

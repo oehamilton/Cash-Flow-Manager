@@ -12,7 +12,7 @@ Status values: `planned` | `in_progress` | `done` | `blocked` | `deferred`
 | F-0.3 | Encrypted DB (sqlite3mc), schema v1, exclusive lock file | 0.3 | `done` | `test/database_opener_test.dart`, `test/app_lock_file_test.dart` |
 | F-0.4 | App password unlock + Windows Hello | 0.4 | `done` | `test/auth_service_test.dart`, `test/password_kdf_test.dart`, `test/widget_test.dart` (settings) |
 | F-0.5 | First-run wizard → primary checking + opening balance | 0.5 | `done` | `test/setup_coordinator_test.dart`, `test/account_repository_test.dart`, `test/money_test.dart`, `test/vault_files_test.dart` |
-| F-0.5b | Open / switch to a different vault database (Settings + Unlock) | 0.5b / 5.x | `done` | `test/vault_switch_service_test.dart` |
+| F-0.5b | Open / switch / restore / create additional vaults (Settings + Unlock) | 0.5b / 5.x | `done` | `test/vault_switch_service_test.dart`, `test/vault_backup_service_test.dart` |
 | F-0.6 | Test harness baseline / sample coverage expansion | 0.6 | `done` | `test/harness_smoke_test.dart`, `test/support/*`, `.github/workflows/ci.yml` |
 | F-0.7 | Audit log table + access-event logging (schema v2) | 0.7 | `done` | `test/audit_log_test.dart` |
 | F-1.1 | Account CRUD + primary flag rules (+ audit writes) | 1.1 | `done` | `test/account_repository_test.dart` |

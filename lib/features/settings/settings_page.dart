@@ -18,6 +18,7 @@ import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../about/about_dialog.dart';
+import '../vault/vault_create_flow.dart';
 import '../vault/vault_file_picker.dart';
 import '../vault/vault_restore_flow.dart';
 import 'activity_log_panel.dart';
@@ -34,6 +35,7 @@ class SettingsPage extends StatefulWidget {
     this.lockTimeoutMinutes = 15,
     this.onLockTimeoutChanged,
     this.onSwitchVault,
+    this.onCreateNewVault,
   });
 
   final AuthService? auth;
@@ -47,6 +49,9 @@ class SettingsPage extends StatefulWidget {
 
   /// Switch to another vault file and return to the unlock screen.
   final Future<void> Function(String databasePath)? onSwitchVault;
+
+  /// Start the create-another-vault wizard at [databasePath].
+  final Future<void> Function(String databasePath)? onCreateNewVault;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -185,6 +190,28 @@ class _SettingsPageState extends State<SettingsPage> {
       );
     }
     await switchVault(restored);
+  }
+
+  Future<void> _createNewVault() async {
+    final createNew = widget.onCreateNewVault;
+    if (createNew == null) {
+      throw StateError('Create new vault is unavailable');
+    }
+    final path = await runCreateNewVaultFlow(context);
+    if (path == null) {
+      return;
+    }
+    final session = widget.auth?.session;
+    if (session != null) {
+      AuditLogRepository(session).append(
+        category: AuditCategory.settings,
+        action: AuditAction.createVault,
+        summary: 'Started create new vault wizard',
+        entityType: AuditEntityType.vault,
+        detail: {'to': path},
+      );
+    }
+    await createNew(path);
   }
 
   Future<void> _backupVault() async {
@@ -364,6 +391,15 @@ class _SettingsPageState extends State<SettingsPage> {
                       : () => _run(_openDifferentVault),
                   icon: const Icon(Icons.folder_open_outlined),
                   label: const Text('Open different vault…'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  key: const Key('settings_create_new_vault'),
+                  onPressed: (_busy || widget.onCreateNewVault == null)
+                      ? null
+                      : () => _run(_createNewVault),
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  label: const Text('Create new vault…'),
                 ),
               ],
               const SizedBox(height: 24),

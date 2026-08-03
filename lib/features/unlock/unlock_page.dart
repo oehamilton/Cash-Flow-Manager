@@ -7,6 +7,7 @@ import '../../core/app_info.dart';
 import '../../data/database_exceptions.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../vault/vault_create_flow.dart';
 import '../vault/vault_file_picker.dart';
 import '../vault/vault_restore_flow.dart';
 
@@ -19,6 +20,7 @@ class UnlockPage extends StatefulWidget {
     required this.mode,
     required this.onUnlocked,
     this.onVaultSwitched,
+    this.onCreateNewVault,
   });
 
   final AuthService auth;
@@ -27,6 +29,9 @@ class UnlockPage extends StatefulWidget {
 
   /// Called after the active vault pointer changes (reload Hello flags, etc.).
   final Future<void> Function()? onVaultSwitched;
+
+  /// Begin wizard to create another vault at the chosen path.
+  final Future<void> Function(String databasePath)? onCreateNewVault;
 
   @override
   State<UnlockPage> createState() => _UnlockPageState();
@@ -115,6 +120,32 @@ class _UnlockPageState extends State<UnlockPage> {
       if (mounted) {
         setState(() => _error = e.message);
       }
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _createNewVault() async {
+    final createNew = widget.onCreateNewVault;
+    if (createNew == null) {
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final path = await runCreateNewVaultFlow(context);
+      if (path == null) {
+        return;
+      }
+      await createNew(path);
     } on Object catch (e) {
       if (mounted) {
         setState(() => _error = e.toString());
@@ -427,6 +458,12 @@ class _UnlockPageState extends State<UnlockPage> {
                         onPressed: _busy ? null : _restoreVaultFromBackup,
                         child: const Text('Restore vault from backup…'),
                       ),
+                      if (widget.onCreateNewVault != null)
+                        TextButton(
+                          key: const Key('unlock_create_new_vault'),
+                          onPressed: _busy ? null : _createNewVault,
+                          child: const Text('Create new vault…'),
+                        ),
                     ],
                   ],
                 ),

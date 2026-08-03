@@ -67,6 +67,26 @@ class VaultPaths {
     );
   }
 
+  /// Suggested path for a new vault under Documents (e.g. Personal / Business).
+  static String suggestedNewVaultDatabasePath({String folderName = 'Personal'}) {
+    final safe = sanitizeVaultFolderName(folderName);
+    return p.join(documentsAppRoot(), safe, defaultFileName);
+  }
+
+  /// Folder segment safe for Windows paths (no separators or reserved junk).
+  static String sanitizeVaultFolderName(String folderName) {
+    var safe = folderName.trim();
+    if (safe.isEmpty) {
+      safe = 'Personal';
+    }
+    safe = safe.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    safe = safe.replaceAll(RegExp(r'\s+'), ' ');
+    if (safe == '.' || safe == '..') {
+      safe = 'Personal';
+    }
+    return safe;
+  }
+
   /// Test-only override for [appDataRoot].
   static String Function()? debugAppDataRootOverride;
 
