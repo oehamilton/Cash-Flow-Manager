@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'recent_vault_store.dart';
 import 'vault_paths.dart';
 
 /// Persists the active vault database path (outside the encrypted DB).
@@ -28,5 +29,6 @@ class VaultLocationStore {
     final normalized = p.normalize(databasePath);
     final file = await _pointerFile();
     await file.writeAsString('$normalized\n');
+    await RecentVaultStore.record(normalized);
   }
 }

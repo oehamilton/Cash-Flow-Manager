@@ -3,11 +3,14 @@ import 'package:flutter/services.dart';
 
 import '../../auth/auth_service.dart';
 import '../../data/account.dart';
+import '../../data/account_history.dart';
 import '../../data/account_repository.dart';
 import '../../data/account_type.dart';
 import '../../data/money.dart';
+import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import 'account_history_chart.dart';
 
 /// Editable account metadata and credentials (Phase 1.3).
 class AccountInfoPage extends StatefulWidget {
@@ -43,6 +46,7 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
   final _notesController = TextEditingController();
   final _aprController = TextEditingController();
   final _minPaymentController = TextEditingController();
+  final _minBalanceController = TextEditingController();
 
   Account? _account;
   AccountType _type = AccountType.checking;
@@ -52,6 +56,7 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
   bool _busy = false;
   String? _error;
   String? _status;
+  List<AccountMonthPoint> _history = const [];
 
   @override
   void initState() {
@@ -73,6 +78,7 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
     _notesController.dispose();
     _aprController.dispose();
     _minPaymentController.dispose();
+    _minBalanceController.dispose();
     super.dispose();
   }
 
@@ -116,9 +122,16 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
     _minPaymentController.text = account.minimumPaymentCents == null
         ? ''
         : _centsToEditable(account.minimumPaymentCents!);
+    _minBalanceController.text = account.minBalanceCents <= 0
+        ? ''
+        : _centsToEditable(account.minBalanceCents);
     _type = account.type;
     _includeInDebtList = account.includeInDebtList;
     _dueDay = account.paymentDueDay;
+    final session = widget.auth.session;
+    _history = session == null
+        ? const []
+        : TransactionRepository(session).trailingTwelveMonths(account.id);
     _error = null;
     if (!initial) {
       setState(() {});
@@ -139,6 +152,7 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
     try {
       final aprText = _aprController.text.trim();
       final minText = _minPaymentController.text.trim();
+      final minBalanceText = _minBalanceController.text.trim();
       repo.update(
         widget.accountId,
         AccountUpdate(
@@ -162,6 +176,11 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
           paymentDueDay: _dueDay,
           clearPaymentDueDay: _dueDay == null,
           includeInDebtList: _includeInDebtList,
+          minBalanceCents: _type == AccountType.checking
+              ? (minBalanceText.isEmpty
+                  ? 0
+                  : parseDollarsToCents(minBalanceText))
+              : 0,
         ),
       );
       _load();
@@ -208,6 +227,32 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
     final repo = _repoOrNull;
     if (repo == null) {
       setState(() => _error = 'Vault is locked');
+      return;
+    }
+    final name = _account?.name ?? 'this account';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('account_confirm_archive'),
+        backgroundColor: AppColors.surfaceElevated,
+        title: const Text('Archive account?'),
+        content: Text(
+          'Archive "$name"? It will leave the active lists but keep its register history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('account_confirm_archive_yes'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
       return;
     }
     setState(() {
@@ -329,6 +374,10 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
                   Expanded(
                     child: ListView(
                       children: [
+                        if (_history.isNotEmpty) ...[
+                          AccountHistoryChart(points: _history),
+                          const SizedBox(height: 20),
+                        ],
                         _sectionTitle(textTheme, 'Basics'),
                         TextField(
                           key: const Key('account_info_name'),
@@ -374,6 +423,31 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
                             labelText: 'Account number',
                           ),
                         ),
+                        if (_type == AccountType.checking) ...[
+                          const SizedBox(height: 20),
+                          _sectionTitle(textTheme, 'Cash buffer'),
+                          TextField(
+                            key: const Key('account_info_min_balance'),
+                            controller: _minBalanceController,
+                            enabled: !_busy,
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(
+                                RegExp(r'[0-9\$\.,]'),
+                              ),
+                            ],
+                            decoration: const InputDecoration(
+                              labelText: 'Minimum balance',
+                              helperText:
+                                  'Reserved buffer for unexpected expenses. '
+                                  'Suggested extras = 4-week low − this amount; '
+                                  'register rows and troughs warn when below it.',
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 20),
                         _sectionTitle(textTheme, 'Credentials'),
                         Text(
@@ -529,23 +603,6 @@ class _AccountInfoPageState extends State<AccountInfoPage> {
                           minLines: 2,
                           maxLines: 4,
                           decoration: const InputDecoration(labelText: 'Notes'),
-                        ),
-                        const SizedBox(height: 24),
-                        _sectionTitle(textTheme, 'Trends'),
-                        Container(
-                          key: const Key('account_info_chart_placeholder'),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.outline),
-                            color: AppColors.surface.withValues(alpha: 0.5),
-                          ),
-                          child: Text(
-                            '12-month balance / interest chart arrives in Phase 4.2.',
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontFamily: AppTheme.monoFont,
-                              color: AppColors.primaryBright,
-                            ),
-                          ),
                         ),
                         const SizedBox(height: 24),
                         Wrap(

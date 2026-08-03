@@ -14,7 +14,16 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'setup_coordinator.dart';
 
-enum SetupWizardMode { fresh, primaryOnly }
+enum SetupWizardMode {
+  /// First-run wizard (welcome → location → security → checking).
+  fresh,
+
+  /// Unlocked vault missing a primary checking account.
+  primaryOnly,
+
+  /// Create another vault while one already exists (location → security → checking).
+  additional,
+}
 
 class SetupWizardPage extends StatefulWidget {
   const SetupWizardPage({
@@ -22,11 +31,19 @@ class SetupWizardPage extends StatefulWidget {
     required this.auth,
     required this.mode,
     required this.onFinished,
+    this.onCancel,
+    this.initialDatabasePath,
   });
 
   final AuthService auth;
   final SetupWizardMode mode;
   final VoidCallback onFinished;
+
+  /// Optional escape for [SetupWizardMode.additional].
+  final VoidCallback? onCancel;
+
+  /// Prefills the vault path (used by additional-vault flow).
+  final String? initialDatabasePath;
 
   @override
   State<SetupWizardPage> createState() => _SetupWizardPageState();
@@ -62,17 +79,30 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
 
   bool get _isOpenAction => _action == VaultSetupAction.open;
 
+  bool get _isFreshLike =>
+      widget.mode == SetupWizardMode.fresh ||
+      widget.mode == SetupWizardMode.additional;
+
   @override
   void initState() {
     super.initState();
-    _step = widget.mode == SetupWizardMode.fresh ? 0 : 3;
+    _step = switch (widget.mode) {
+      SetupWizardMode.fresh => 0,
+      SetupWizardMode.additional => 1,
+      SetupWizardMode.primaryOnly => 3,
+    };
     _pathController.addListener(_onPathEdited);
     _loadDefaults();
   }
 
   Future<void> _loadDefaults() async {
-    final defaultPath = await VaultPaths.defaultDatabasePath();
     final hello = await widget.auth.isHelloAvailable();
+    final initial = widget.initialDatabasePath?.trim();
+    final defaultPath = (initial != null && initial.isNotEmpty)
+        ? initial
+        : widget.mode == SetupWizardMode.additional
+            ? VaultPaths.suggestedNewVaultDatabasePath()
+            : await VaultPaths.defaultDatabasePath();
     if (!mounted) {
       return;
     }
@@ -140,7 +170,7 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
 
   Future<void> _next() async {
     setState(() => _error = null);
-    if (widget.mode == SetupWizardMode.fresh) {
+    if (_isFreshLike) {
       if (_step == 1) {
         if (!await _validateLocation()) {
           return;
@@ -170,7 +200,14 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
   }
 
   void _back() {
-    if (widget.mode == SetupWizardMode.primaryOnly || _step == 0) {
+    if (widget.mode == SetupWizardMode.primaryOnly) {
+      return;
+    }
+    if (widget.mode == SetupWizardMode.additional && _step <= 1) {
+      widget.onCancel?.call();
+      return;
+    }
+    if (_step == 0) {
       return;
     }
     setState(() {
@@ -302,7 +339,7 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
       _error = null;
     });
     try {
-      if (widget.mode == SetupWizardMode.fresh) {
+      if (_isFreshLike) {
         await _coordinator.completeFreshSetup(
           databasePath: _pathController.text.trim(),
           password: _passwordController.text,
@@ -417,9 +454,14 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    widget.mode == SetupWizardMode.fresh
-                        ? 'Setup wizard — ${_freshSteps[_step.clamp(0, 3)]}'
-                        : 'Finish setup — Primary checking',
+                    switch (widget.mode) {
+                      SetupWizardMode.fresh =>
+                        'Setup wizard — ${_freshSteps[_step.clamp(0, 3)]}',
+                      SetupWizardMode.additional =>
+                        'New vault — ${_freshSteps[_step.clamp(0, 3)]}',
+                      SetupWizardMode.primaryOnly =>
+                        'Finish setup — Primary checking',
+                    },
                     style: textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
@@ -439,11 +481,18 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      if (widget.mode == SetupWizardMode.fresh && _step > 0)
+                      if (_isFreshLike &&
+                          (_step > 0 ||
+                              widget.mode == SetupWizardMode.additional))
                         OutlinedButton(
                           key: const Key('wizard_back'),
                           onPressed: _busy ? null : _back,
-                          child: const Text('Back'),
+                          child: Text(
+                            widget.mode == SetupWizardMode.additional &&
+                                    _step <= 1
+                                ? 'Cancel'
+                                : 'Back',
+                          ),
                         ),
                       const Spacer(),
                       FilledButton(

@@ -5,6 +5,7 @@ import '../../auth/auth_service.dart';
 import '../../data/account.dart';
 import '../../data/account_repository.dart';
 import '../../data/money.dart';
+import '../../data/recurrence_materializer.dart';
 import '../../data/transaction.dart';
 import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
@@ -14,10 +15,11 @@ import 'reconcile_dialog.dart';
 import 'register_filter.dart';
 import 'register_filter_bar.dart';
 import 'register_metrics_bar.dart';
+import 'register_row_legend.dart';
 import 'register_row_style.dart';
 import 'transaction_editor_dialog.dart';
 
-/// Register surface: sticky metrics, filter bar, and ledger (Phase 2.6).
+/// Register surface: sticky metrics, filter bar, and ledger.
 ///
 /// Ledger rows are always read from [accountId] during [build] so switching
 /// accounts cannot show a stale list from a previous register.
@@ -26,10 +28,12 @@ class RegisterPage extends StatefulWidget {
     super.key,
     required this.auth,
     required this.accountId,
+    this.onOpenRegister,
   });
 
   final AuthService? auth;
   final String? accountId;
+  final ValueChanged<String>? onOpenRegister;
 
   @override
   State<RegisterPage> createState() => _RegisterPageState();
@@ -39,12 +43,77 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _error;
   RegisterFilter _filter = const RegisterFilter();
   final FocusNode _searchFocus = FocusNode();
+  final ScrollController _ledgerScroll = ScrollController();
   bool _showRecurring = false;
+  String? _lastMaterializedAccountId;
+  bool _scrollToBoundaryAfterBuild = false;
+  bool _scrollToTopAfterBuild = false;
+
+  /// Approximate ledger row height (content + divider) for All-boundary jump.
+  static const double _kRegisterRowExtent = 57;
+
+  @override
+  void didUpdateWidget(covariant RegisterPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.accountId != widget.accountId) {
+      if (_filter.cleared == ClearedFilter.all) {
+        _scrollToBoundaryAfterBuild = true;
+      } else {
+        _scrollToTopAfterBuild = true;
+      }
+    }
+  }
 
   @override
   void dispose() {
     _searchFocus.dispose();
+    _ledgerScroll.dispose();
     super.dispose();
+  }
+
+  void _scheduleLedgerJump(double offset) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_ledgerScroll.hasClients) {
+        return;
+      }
+      final max = _ledgerScroll.position.maxScrollExtent;
+      _ledgerScroll.jumpTo(offset.clamp(0.0, max));
+    });
+  }
+
+  void _scheduleScrollToBoundary(List<RegisterEntry> visible) {
+    final index = clearedOpenBoundaryIndex(visible);
+    _scheduleLedgerJump(index * _kRegisterRowExtent);
+  }
+
+  void _materializeIfNeeded(String accountId) {
+    final session = widget.auth?.session;
+    if (session == null || _lastMaterializedAccountId == accountId) {
+      return;
+    }
+    // Avoid writing the DB / mutating state synchronously during build.
+    _lastMaterializedAccountId = accountId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.auth?.session == null) {
+        return;
+      }
+      if (_lastMaterializedAccountId != accountId) {
+        return;
+      }
+      try {
+        RecurrenceMaterializer(widget.auth!.session!).materializeAccount(
+          accountId,
+        );
+        if (mounted) {
+          setState(() {});
+        }
+      } on Object catch (e) {
+        _lastMaterializedAccountId = null;
+        if (mounted) {
+          setState(() => _error = e.toString());
+        }
+      }
+    });
   }
 
   TransactionRepository? get _transactions {
@@ -62,7 +131,8 @@ class _RegisterPageState extends State<RegisterPage> {
     }
     final result = await TransactionEditorDialog.show(
       context,
-      suggestions: repo.payeeSuggestions(account.id),
+      suggestions: repo.combinedPayeeSuggestions(account.id),
+      showInterestPrincipal: account.type.showsInterestPrincipal,
     );
     if (result == null || !mounted) {
       return;
@@ -73,17 +143,22 @@ class _RegisterPageState extends State<RegisterPage> {
           accountId: account.id,
           date: result.date,
           payee: result.payee,
+          payeeId: result.payeeId,
+          transferToAccountId: result.transferToAccountId,
           memo: result.memo,
           amountCents: result.amountCents,
+          interestCents: result.interestCents,
+          principalCents: result.principalCents,
         ),
       );
+      _lastMaterializedAccountId = null;
       setState(() => _error = null);
     } on Object catch (e) {
       setState(() => _error = e.toString());
     }
   }
 
-  Future<void> _editTransaction(Transaction tx) async {
+  Future<void> _editTransaction(Account account, Transaction tx) async {
     if (tx.isOpeningBalance || tx.isCleared) {
       return;
     }
@@ -91,10 +166,13 @@ class _RegisterPageState extends State<RegisterPage> {
     if (repo == null) {
       return;
     }
+    final counterpart = repo.transferCounterpart(tx.id);
     final result = await TransactionEditorDialog.show(
       context,
-      suggestions: repo.payeeSuggestions(tx.accountId),
+      suggestions: repo.combinedPayeeSuggestions(tx.accountId),
       initial: tx,
+      initialTransferAccountId: counterpart?.accountId,
+      showInterestPrincipal: account.type.showsInterestPrincipal,
     );
     if (result == null || !mounted) {
       return;
@@ -106,9 +184,17 @@ class _RegisterPageState extends State<RegisterPage> {
           date: result.date,
           payee: result.payee,
           clearPayee: result.payee == null || result.payee!.trim().isEmpty,
+          payeeId: result.payeeId,
+          clearPayeeId: result.payeeId == null,
+          transferToAccountId: result.transferToAccountId,
+          clearTransfer: result.clearTransfer,
           memo: result.memo,
           clearMemo: result.memo == null || result.memo!.trim().isEmpty,
           amountCents: result.amountCents,
+          interestCents: result.interestCents,
+          clearInterest: result.clearInterest,
+          principalCents: result.principalCents,
+          clearPrincipal: result.clearPrincipal,
         ),
       );
       setState(() => _error = null);
@@ -125,15 +211,32 @@ class _RegisterPageState extends State<RegisterPage> {
     if (repo == null) {
       return;
     }
+    final isTransfer = tx.isTransfer;
+    final isRecurring = tx.isRecurringGenerated;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
-        title: const Text('Delete transaction?'),
+        title: Text(
+          isTransfer
+              ? 'Delete transfer?'
+              : isRecurring
+                  ? 'Delete this occurrence?'
+                  : 'Delete transaction?',
+        ),
         content: Text(
-          tx.payee == null || tx.payee!.isEmpty
-              ? 'Delete this ${formatCents(tx.amountCents)} entry?'
-              : 'Delete "${tx.payee}" (${formatCents(tx.amountCents)})?',
+          [
+            if (isTransfer)
+              tx.payee == null || tx.payee!.isEmpty
+                  ? 'Delete this transfer (${formatCents(tx.amountCents)}) from both accounts?'
+                  : 'Delete transfer "${tx.payee}" (${formatCents(tx.amountCents)}) from both accounts?'
+            else if (tx.payee == null || tx.payee!.isEmpty)
+              'Delete this ${formatCents(tx.amountCents)} entry?'
+            else
+              'Delete "${tx.payee}" (${formatCents(tx.amountCents)})?',
+            if (isRecurring)
+              'This occurrence will not be regenerated by the recurring rule.',
+          ].join('\n\n'),
         ),
         actions: [
           TextButton(
@@ -218,30 +321,51 @@ class _RegisterPageState extends State<RegisterPage> {
       return RecurrencePage(
         auth: auth,
         accountId: accountId,
-        onClose: () => setState(() => _showRecurring = false),
+        onClose: () => setState(() {
+          _showRecurring = false;
+          _lastMaterializedAccountId = null;
+        }),
       );
     }
 
     Account? account;
+    List<Account> switcherAccounts = const [];
     RegisterMetrics? metrics;
     List<RegisterEntry> entries = const [];
     List<RegisterEntry> visible = const [];
     String? loadError = _error;
 
-    if (session != null && accountId != null) {
+    if (session != null) {
       try {
-        final accounts = AccountRepository(session);
-        final txs = TransactionRepository(session);
-        account = accounts.getById(accountId);
-        if (account != null) {
-          // Always scope by the widget account id (not cached state).
-          metrics = txs.metricsFor(accountId);
-          entries = txs.listRegisterEntries(accountId);
-          visible = applyRegisterFilter(entries, _filter);
+        final accountsRepo = AccountRepository(session);
+        switcherAccounts = accountsRepo.listAccounts();
+        if (accountId != null) {
+          final txs = TransactionRepository(session);
+          account = accountsRepo.getById(accountId);
+          if (account != null) {
+            _materializeIfNeeded(accountId);
+            metrics = txs.metricsFor(accountId);
+            entries = txs.listRegisterEntries(accountId);
+            visible = applyRegisterFilter(entries, _filter);
+          }
         }
       } on Object catch (e) {
         loadError = e.toString();
       }
+    }
+
+    if (_scrollToBoundaryAfterBuild &&
+        _filter.cleared == ClearedFilter.all &&
+        visible.isNotEmpty) {
+      _scrollToBoundaryAfterBuild = false;
+      _scrollToTopAfterBuild = false;
+      _scheduleScrollToBoundary(visible);
+    } else if (_scrollToTopAfterBuild) {
+      _scrollToTopAfterBuild = false;
+      _scrollToBoundaryAfterBuild = false;
+      _scheduleLedgerJump(0);
+    } else if (_scrollToBoundaryAfterBuild) {
+      _scrollToBoundaryAfterBuild = false;
     }
 
     return Shortcuts(
@@ -272,7 +396,13 @@ class _RegisterPageState extends State<RegisterPage> {
           _ClearFilterIntent: CallbackAction<_ClearFilterIntent>(
             onInvoke: (_) {
               if (_filter.isActive) {
-                setState(() => _filter = const RegisterFilter());
+                setState(() {
+                  if (_filter.cleared != ClearedFilter.uncleared) {
+                    _scrollToTopAfterBuild = true;
+                    _scrollToBoundaryAfterBuild = false;
+                  }
+                  _filter = const RegisterFilter();
+                });
               } else if (_searchFocus.hasFocus) {
                 _searchFocus.unfocus();
               }
@@ -303,15 +433,50 @@ class _RegisterPageState extends State<RegisterPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          account == null
-                              ? 'Register'
-                              : 'Register — ${account.name}',
-                          key: const Key('register_title'),
-                          style: textTheme.headlineMedium,
-                        ),
+                        child: account != null &&
+                                switcherAccounts.isNotEmpty &&
+                                widget.onOpenRegister != null
+                            ? DropdownButtonFormField<String>(
+                                key: const Key('register_account_switcher'),
+                                // ignore: deprecated_member_use
+                                value: switcherAccounts.any(
+                                  (a) => a.id == account!.id,
+                                )
+                                    ? account.id
+                                    : null,
+                                decoration: const InputDecoration(
+                                  labelText: 'Account',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: [
+                                  for (final a in switcherAccounts)
+                                    DropdownMenuItem(
+                                      value: a.id,
+                                      child: Text(
+                                        a.isPrimary
+                                            ? '${a.name} (primary)'
+                                            : a.name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                ],
+                                onChanged: (id) {
+                                  if (id != null) {
+                                    widget.onOpenRegister!(id);
+                                  }
+                                },
+                              )
+                            : Text(
+                                account == null
+                                    ? 'Register'
+                                    : 'Register — ${account.name}',
+                                key: const Key('register_title'),
+                                style: textTheme.headlineMedium,
+                              ),
                       ),
                       if (account != null) ...[
+                        const SizedBox(width: 12),
                         OutlinedButton.icon(
                           key: const Key('register_recurring'),
                           onPressed: () =>
@@ -347,6 +512,7 @@ class _RegisterPageState extends State<RegisterPage> {
                     )
                   else ...[
                     Text(
+                      key: const Key('register_account_meta'),
                       '${account.type.label}'
                       '${account.isPrimary ? ' · PRIMARY' : ''}'
                       '${account.institution == null || account.institution!.isEmpty ? '' : ' · ${account.institution}'}',
@@ -355,14 +521,32 @@ class _RegisterPageState extends State<RegisterPage> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    if (metrics != null) RegisterMetricsBar(metrics: metrics),
+                    if (metrics != null)
+                      RegisterMetricsBar(
+                        metrics: metrics,
+                        minBalanceCents: account.minBalanceCents,
+                      ),
+                    const RegisterRowLegend(),
                     const SizedBox(height: 8),
                     RegisterFilterBar(
                       filter: _filter,
                       searchFocusNode: _searchFocus,
                       resultCount: visible.length,
                       totalCount: entries.length,
-                      onChanged: (next) => setState(() => _filter = next),
+                      onChanged: (next) {
+                        setState(() {
+                          if (next.cleared != _filter.cleared) {
+                            if (next.cleared == ClearedFilter.all) {
+                              _scrollToBoundaryAfterBuild = true;
+                              _scrollToTopAfterBuild = false;
+                            } else {
+                              _scrollToTopAfterBuild = true;
+                              _scrollToBoundaryAfterBuild = false;
+                            }
+                          }
+                          _filter = next;
+                        });
+                      },
                     ),
                     if (loadError != null) ...[
                       const SizedBox(height: 8),
@@ -413,6 +597,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                       key: ValueKey(
                                         'register_tx_list_$accountId',
                                       ),
+                                      controller: _ledgerScroll,
                                       itemCount: visible.length,
                                       itemBuilder: (context, index) {
                                         final entry = visible[index];
@@ -429,6 +614,8 @@ class _RegisterPageState extends State<RegisterPage> {
                                             _RegisterLedgerRow(
                                               entry: entry,
                                               dateLabel: _dateLabel(tx.date),
+                                              minBalanceCents:
+                                                  account?.minBalanceCents ?? 0,
                                               onClearedChanged:
                                                   tx.isOpeningBalance
                                                       ? null
@@ -437,11 +624,29 @@ class _RegisterPageState extends State<RegisterPage> {
                                                             tx,
                                                             value,
                                                           ),
+                                              onJumpTransfer: !tx.isTransfer ||
+                                                      widget.onOpenRegister ==
+                                                          null
+                                                  ? null
+                                                  : () {
+                                                      final other =
+                                                          _transactions
+                                                              ?.transferCounterpart(
+                                                        tx.id,
+                                                      );
+                                                      if (other != null) {
+                                                        widget.onOpenRegister!(
+                                                          other.accountId,
+                                                        );
+                                                      }
+                                                    },
                                               onEdit: tx.isOpeningBalance ||
                                                       tx.isCleared
                                                   ? null
-                                                  : () =>
-                                                      _editTransaction(tx),
+                                                  : () => _editTransaction(
+                                                        account!,
+                                                        tx,
+                                                      ),
                                               onDelete: tx.isOpeningBalance ||
                                                       tx.isCleared
                                                   ? null
@@ -510,24 +715,44 @@ class _RegisterColumnHeader extends StatelessWidget {
           width: 96,
           child: Text('Balance', textAlign: TextAlign.end, style: style),
         ),
-        const SizedBox(width: 88),
+        const SizedBox(width: 120),
       ],
     );
   }
+}
+
+String? _splitLabel(Transaction tx) {
+  final interest = tx.interestCents;
+  final principal = tx.principalCents;
+  if (interest == null && principal == null) {
+    return null;
+  }
+  final parts = <String>[];
+  if (interest != null) {
+    parts.add('Int ${formatCents(interest)}');
+  }
+  if (principal != null) {
+    parts.add('Prin ${formatCents(principal)}');
+  }
+  return parts.join(' · ');
 }
 
 class _RegisterLedgerRow extends StatelessWidget {
   const _RegisterLedgerRow({
     required this.entry,
     required this.dateLabel,
+    this.minBalanceCents = 0,
     this.onClearedChanged,
+    this.onJumpTransfer,
     this.onEdit,
     this.onDelete,
   });
 
   final RegisterEntry entry;
   final String dateLabel;
+  final int minBalanceCents;
   final ValueChanged<bool>? onClearedChanged;
+  final VoidCallback? onJumpTransfer;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -535,9 +760,16 @@ class _RegisterLedgerRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final tx = entry.transaction;
-    final style = RegisterRowStyle.forTransaction(tx);
-    final payeeLabel =
+    final balance = entry.runningBalanceCents;
+    final style = RegisterRowStyle.forTransaction(
+      tx,
+      runningBalanceCents: balance,
+      minBalanceCents: minBalanceCents,
+    );
+    final basePayee =
         tx.payee == null || tx.payee!.isEmpty ? '(no payee)' : tx.payee!;
+    final payeeLabel = tx.isUserOverridden ? '$basePayee · edited' : basePayee;
+    final splitLabel = _splitLabel(tx);
     final foreground =
         style.mutedForeground ? AppColors.onSurfaceMuted : AppColors.onSurface;
     final mono = textTheme.bodyMedium?.copyWith(
@@ -546,7 +778,6 @@ class _RegisterLedgerRow extends StatelessWidget {
     );
     final debit = entry.debitCents;
     final credit = entry.creditCents;
-    final balance = entry.runningBalanceCents;
 
     return ColoredBox(
       key: Key('register_tx_style_${tx.id}'),
@@ -583,10 +814,41 @@ class _RegisterLedgerRow extends StatelessWidget {
                     child: Text(dateLabel, style: mono),
                   ),
                   Expanded(
-                    child: Text(
-                      payeeLabel,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyMedium?.copyWith(color: foreground),
+                    child: Row(
+                      children: [
+                        if (tx.isTransfer) ...[
+                          Icon(
+                            Icons.swap_horiz,
+                            key: Key('register_tx_transfer_${tx.id}'),
+                            size: 16,
+                            color: AppColors.primaryBright,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                payeeLabel,
+                                overflow: TextOverflow.ellipsis,
+                                style: textTheme.bodyMedium?.copyWith(
+                                  color: foreground,
+                                ),
+                              ),
+                              if (splitLabel != null)
+                                Text(
+                                  splitLabel,
+                                  key: Key('register_tx_split_${tx.id}'),
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: AppColors.onSurfaceMuted,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   SizedBox(
@@ -627,12 +889,25 @@ class _RegisterLedgerRow extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: 88,
-                    child: onEdit == null && onDelete == null
+                    width: 120,
+                    child: onEdit == null &&
+                            onDelete == null &&
+                            onJumpTransfer == null
                         ? const SizedBox.shrink()
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
+                              if (onJumpTransfer != null)
+                                IconButton(
+                                  key: Key('register_tx_jump_${tx.id}'),
+                                  tooltip: 'Open other account',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: onJumpTransfer,
+                                  icon: const Icon(
+                                    Icons.open_in_new,
+                                    size: 18,
+                                  ),
+                                ),
                               if (onEdit != null)
                                 IconButton(
                                   key: Key('register_tx_edit_${tx.id}'),

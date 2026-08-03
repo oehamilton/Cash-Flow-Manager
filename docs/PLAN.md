@@ -125,6 +125,7 @@ accounts(
   is_primary INTEGER NOT NULL DEFAULT 0,  -- exactly one checking primary
   is_archived INTEGER NOT NULL DEFAULT 0,
   include_in_debt_list INTEGER NOT NULL DEFAULT 0, -- 1 for loan/credit_card/etc.
+  min_balance_cents INTEGER NOT NULL DEFAULT 0, -- checking soft floor / cash buffer (schema v3)
   opening_balance_cents INTEGER NOT NULL DEFAULT 0,
   opening_date TEXT NOT NULL,       -- date
   created_at TEXT NOT NULL,
@@ -175,6 +176,7 @@ transactions(
 -- balance_snapshots deferred; derive from transactions for v1
 
 -- Schema v2: append-only activity / audit trail (access + data changes)
+-- Schema v3: accounts.min_balance_cents (checking cash buffer)
 audit_log(
   id TEXT PRIMARY KEY,
   at TEXT NOT NULL,                 -- ISO-8601 UTC
@@ -194,7 +196,7 @@ lock_meta is NOT in DB — filesystem .cfm.lock beside the db file.
 
 **Running balance:** computed in query/UI from `opening_balance` + ordered transactions (not stored per row in v1, unless performance requires a cached column later).
 
-**Sign convention:** each register is account-centric (payment on a credit card register reduces balance owed — document UI so “payment” is intuitive per account type).
+**Sign convention:** each register is account-centric (`+` inflow / increase, `-` outflow / decrease for that register). For **loans and credit cards**, a **positive** balance means you owe them; **negative** means a credit (they owe you). A payment on those registers is a negative amount (reduces balance owed).
 
 **Indexes:** `(account_id, date, id)`, `(account_id, is_cleared)`, `(recurrence_rule_id)`, `audit_log(at)`, `audit_log(category, at)`.
 
@@ -390,7 +392,7 @@ Worth deciding now so they don’t surprise us mid-build:
 - **0.3** SQLCipher create/open, schema v1 migration, exclusive lock file
 - **0.4** Password set/unlock + Windows Hello hookup
 - **0.5** First-run wizard → primary checking + opening balance; default route = Register
-- **0.5b** *(later)* Open / switch active vault to a different database file path
+- **0.5b** Open / switch / restore / create additional vaults + recent list — **done** (Settings + Unlock)
 - **0.6** Test harness baseline (sample unit test + CI-ready `flutter test`)
 - **0.7** Audit log foundation — schema v2 `audit_log` table; log access events (vault create, unlock password/Hello, unlock failed, lock, force unlock, Hello enable/disable); no UI viewer yet
 - **Exit:** wizard creates encrypted DB; unlock works; lock prevents second writer; access events land in `audit_log`; tests green; theme direction accepted
@@ -423,17 +425,27 @@ Worth deciding now so they don’t surprise us mid-build:
 ### Phase 4 — Trends & payoff aids
 - **4.1** Interest/principal fields on txs where relevant
 - **4.2** Account detail 12-month chart (balance + interest paid) — **chart style gate**
-- **4.3** Extra-payment hint from primary trough + APR-sorted debts
+- **4.3** Extra-payment hint from primary trough + APR-sorted debts; checking min-balance buffer
 - **Exit:** supporting accounts help payoff decisions
 
 ### Phase 5 — Polish & ship
 - **5.1** Validation, empty states, confirmations, idle lock, **Activity log viewer** (read-only `audit_log` in Settings), **final visual polish**
 - **5.2** Backup/export encrypted DB (+ optional CSV register export)
-- **5.3** Windows release build (exe/MSIX; MSI if required) — prefer **x64** build on Intel/AMD host; optional native ARM64 build on ARM host (see [`DEPENDENCIES.md`](DEPENDENCIES.md))
-- **5.4** Full regression pass + manual Windows 11 checklist
+- **5.3** Windows release build (exe/MSIX; MSI if required) via [`tool/build_release.ps1`](../tool/build_release.ps1):
+  - Native **x64** (Intel/AMD host) and **arm64** (Surface / Snapdragon host); see [`DEPENDENCIES.md`](DEPENDENCIES.md)
+  - **Code-signed MSIX** with Project8X publisher identity (PFX; private key not in git)
+  - **Trusted-cert install path:** end users trust Project8X `.cer` once (admin), then install `.msix` **without Developer Mode** (`tool/install_trusted_publisher.ps1`)
+  - Microsoft Store / paid OV–EV CA signing is a later upgrade (skips even the one-time `.cer` trust), not a v1 blocker
+- **5.4** Full regression pass + manual Windows 11 checklist — **parked**
 - **Exit:** daily-driver installable build
 
-### Phase 6 — Android (later)
+### Phase 6 — Transfers & Payees
+- **6.1** Linked transfers: account-as-payee creates paired register legs (`transfer_pair_id`); edit syncs both; delete removes both; clear stays per-leg
+- **6.2** Payee directory (managed non-account payees: notes/contact) + autocomplete; **left-rail Payees** destination
+- **6.3** Recurring transfers (`linked_account_id` materializes pairs) + jump-to-other-leg; optional payee rename/merge; **register account switcher**
+- **Exit:** paying cards/loans and moving funds between accounts is one action; payees are manageable
+
+### Phase 7 — Android (later)
 - Android target, biometric unlock, sync-safety before relying on shared OneDrive file
 
 ## Out of scope for v1
@@ -441,8 +453,8 @@ Worth deciding now so they don’t surprise us mid-build:
 - Bank sync / Plaid / OFX
 - Multi-user backend
 - Perfect multi-device conflict resolution
-- Transfer pairing (schema stub only)
 - Forecasting customization per non-primary account (easy follow-on)
+- Category splits / receipt attachments / matching two existing singles into a transfer
 
 ## Success criteria
 

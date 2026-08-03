@@ -141,6 +141,43 @@ flutter build windows --release   # closer to ship
 Artifacts land under `build\windows\<arch>\runner\...`  
 (`arm64` on ARM hosts, `x64` on Intel/AMD hosts).
 
+### Release + MSIX (Phase 5.3)
+
+**Signing cert (once per build machine):**
+
+```powershell
+.\tool\new_code_signing_cert.ps1
+```
+
+Creates a Project8X code-signing PFX under `secrets/` (gitignored) and a public `.cer` under `packaging/` (safe to ship). See [`secrets/README.md`](../secrets/README.md).
+
+**Build signed package:**
+
+```powershell
+.\tool\build_release.ps1                              # analyze, test, release build
+.\tool\build_release.ps1 -Msix                        # signed MSIX for this host's arch
+.\tool\build_release.ps1 -Msix -Architecture arm64    # native ARM64 (Surface / Snapdragon)
+.\tool\build_release.ps1 -Msix -Architecture x64      # Intel/AMD
+```
+
+Uses the `msix` pub.dev package (`msix_config` in `pubspec.yaml`). The script:
+
+- Builds a **release** Windows app for the **host** architecture (Flutter does not cross-compile Windows reliably).
+- **Signs** the MSIX with the Project8X PFX (`CFM_MSIX_CERT_PATH` / `CFM_MSIX_CERT_PASSWORD`, or `secrets/…`).
+- Writes `build\windows\msix\CashFlowManager-<arch>.msix` plus `Project8X-CodeSigning.cer`.
+- Fails clearly if the signing cert is missing (no silent unsigned release MSIX).
+
+**End-user install (no Developer Mode):** trust the publisher cert once (admin), then install the MSIX:
+
+```powershell
+.\tool\install_trusted_publisher.ps1
+Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-arm64.msix
+```
+
+Or double-click the `.msix` after the cert is trusted. Developer Mode remains useful for **Flutter development** (plugin symlinks), not for end-user installs.
+
+**Surface Pro / Windows on ARM:** run the arm64 build **on the tablet** (or any Snapdragon Windows host) for a native ARM64 binary.
+
 ## CI / second machine tips
 
 - Record **host arch** in any release notes (`x64` vs `arm64`).

@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../../auth/auth_service.dart';
 import '../../data/account_repository.dart';
 import '../../data/money.dart';
+import '../../data/payee_suggestion.dart';
 import '../../data/recurrence_rule.dart';
 import '../../data/recurrence_rule_repository.dart';
+import '../../data/transaction.dart';
+import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import 'recurrence_editor_dialog.dart';
@@ -76,19 +79,33 @@ class _RecurrencePageState extends State<RecurrencePage> {
     });
   }
 
+  List<PayeeSuggestion> _payeeSuggestions() {
+    final session = widget.auth.session;
+    if (session == null) {
+      return const [];
+    }
+    return TransactionRepository(session).combinedPayeeSuggestions(
+      widget.accountId,
+    );
+  }
+
   Future<void> _add() async {
     final repo = _repo;
     if (repo == null) {
       return;
     }
-    final result = await RecurrenceEditorDialog.show(context);
+    final result = await RecurrenceEditorDialog.show(
+      context,
+      suggestions: _payeeSuggestions(),
+    );
     if (result == null || !mounted) {
       return;
     }
     try {
-      repo.create(
+      final id = repo.create(
         RecurrenceRuleDraft(
           accountId: widget.accountId,
+          linkedAccountId: result.linkedAccountId,
           payee: result.payee,
           memo: result.memo,
           amountCents: result.amountCents,
@@ -100,7 +117,28 @@ class _RecurrencePageState extends State<RecurrencePage> {
           isActive: result.isActive,
         ),
       );
+      final generated = TransactionRepository(widget.auth.session!)
+          .listForAccount(widget.accountId)
+          .where(
+            (t) =>
+                t.source == TransactionSource.recurringGenerated &&
+                t.recurrenceRuleId == id,
+          )
+          .length;
       _reload();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            generated == 0
+                ? 'Recurring rule saved (no upcoming rows in the ~2-month window).'
+                : 'Recurring rule saved — $generated upcoming register '
+                    'row${generated == 1 ? '' : 's'} added.',
+          ),
+        ),
+      );
     } on Object catch (e) {
       setState(() => _error = e.toString());
     }
@@ -111,7 +149,11 @@ class _RecurrencePageState extends State<RecurrencePage> {
     if (repo == null) {
       return;
     }
-    final result = await RecurrenceEditorDialog.show(context, initial: rule);
+    final result = await RecurrenceEditorDialog.show(
+      context,
+      initial: rule,
+      suggestions: _payeeSuggestions(),
+    );
     if (result == null || !mounted) {
       return;
     }
@@ -119,6 +161,8 @@ class _RecurrencePageState extends State<RecurrencePage> {
       repo.update(
         rule.id,
         RecurrenceRuleUpdate(
+          linkedAccountId: result.linkedAccountId,
+          clearLinkedAccountId: result.clearLinkedAccountId,
           payee: result.payee,
           memo: result.memo,
           clearMemo: result.memo == null || result.memo!.trim().isEmpty,
@@ -228,7 +272,7 @@ class _RecurrencePageState extends State<RecurrencePage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Rules for this account. Instances appear on the register in Phase 3.2.',
+              'Rules for this account. Active rules post ~2 months of instances to the register.',
               style: textTheme.bodyMedium?.copyWith(
                 color: AppColors.onSurfaceMuted,
               ),

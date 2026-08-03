@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../app_shell/app_shell.dart';
 import '../../auth/auth_service.dart';
+import '../../auth/vault_switch_service.dart';
 import '../../data/account_repository.dart';
+import '../../data/audit_categories.dart';
+import '../../data/audit_log_repository.dart';
+import '../../data/recurrence_materializer.dart';
 import '../wizard/setup_wizard_page.dart';
 import 'unlock_page.dart';
 
@@ -23,6 +27,8 @@ class _AuthGateState extends State<AuthGate> {
   bool _helloEnabled = false;
   bool _helloAvailable = false;
   bool _needsPrimary = false;
+  bool _creatingAdditional = false;
+  String? _additionalVaultPath;
 
   @override
   void initState() {
@@ -63,8 +69,12 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _onUnlocked() async {
+    final session = _auth.session!;
     final needsPrimary =
-        !AccountRepository(_auth.session!).hasPrimaryAccount();
+        !AccountRepository(session).hasPrimaryAccount();
+    if (!needsPrimary) {
+      RecurrenceMaterializer(session).materializeAll();
+    }
     if (!mounted) {
       return;
     }
@@ -83,6 +93,8 @@ class _AuthGateState extends State<AuthGate> {
     setState(() {
       _vaultExists = true;
       _needsPrimary = needsPrimary;
+      _creatingAdditional = false;
+      _additionalVaultPath = null;
     });
     await _refreshHelloFlags();
   }
@@ -98,11 +110,49 @@ class _AuthGateState extends State<AuthGate> {
     await _bootstrap();
   }
 
+  /// Settings / Unlock: create another vault at [databasePath].
+  Future<void> _beginCreateNewVault(String databasePath) async {
+    if (_auth.isUnlocked) {
+      await _auth.lock();
+    }
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _creatingAdditional = true;
+      _additionalVaultPath = databasePath;
+      _needsPrimary = false;
+      _loading = false;
+    });
+  }
+
+  Future<void> _cancelCreateNewVault() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _creatingAdditional = false;
+      _additionalVaultPath = null;
+    });
+    await _bootstrap();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
         body: Center(child: Text('Loading…', key: Key('auth_loading'))),
+      );
+    }
+
+    if (_creatingAdditional) {
+      return SetupWizardPage(
+        key: const Key('setup_wizard_additional'),
+        auth: _auth,
+        mode: SetupWizardMode.additional,
+        initialDatabasePath: _additionalVaultPath,
+        onFinished: _onSetupFinished,
+        onCancel: _cancelCreateNewVault,
       );
     }
 
@@ -120,6 +170,8 @@ class _AuthGateState extends State<AuthGate> {
         auth: _auth,
         mode: UnlockMode.unlock,
         onUnlocked: _onUnlocked,
+        onVaultSwitched: _bootstrap,
+        onCreateNewVault: _beginCreateNewVault,
       );
     }
 
@@ -135,6 +187,8 @@ class _AuthGateState extends State<AuthGate> {
     return AppShell(
       auth: _auth,
       onLock: _lock,
+      onSwitchVault: _switchVaultAndLock,
+      onCreateNewVault: _beginCreateNewVault,
       helloEnabled: _helloEnabled,
       helloAvailable: _helloAvailable,
       onToggleHello: (enable) async {
@@ -146,5 +200,26 @@ class _AuthGateState extends State<AuthGate> {
         await _refreshHelloFlags();
       },
     );
+  }
+
+  /// Settings: switch active vault pointer, lock, then show unlock for the new file.
+  Future<void> _switchVaultAndLock(String databasePath) async {
+    final session = _auth.session;
+    if (session != null) {
+      AuditLogRepository(session).append(
+        category: AuditCategory.settings,
+        action: AuditAction.switchVault,
+        summary: 'Switched active vault',
+        entityType: AuditEntityType.vault,
+        detail: {'to': databasePath},
+      );
+    }
+    await VaultSwitchService.activate(databasePath);
+    await _auth.lock();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _needsPrimary = false);
+    await _bootstrap();
   }
 }

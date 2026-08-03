@@ -73,6 +73,21 @@ class DatabaseOpener {
         version = 2;
         continue;
       }
+      if (version == 2) {
+        _migrateV2ToV3(db);
+        version = 3;
+        continue;
+      }
+      if (version == 3) {
+        _migrateV3ToV4(db);
+        version = 4;
+        continue;
+      }
+      if (version == 4) {
+        _migrateV4ToV5(db);
+        version = 5;
+        continue;
+      }
       throw DatabaseMigrationException(
         'No migration path from schema v$version to v$kSchemaVersion',
       );
@@ -103,6 +118,15 @@ class DatabaseOpener {
       for (final sql in SchemaV2.migrationStatements) {
         db.execute(sql);
       }
+      for (final sql in SchemaV3.migrationStatements) {
+        db.execute(sql);
+      }
+      for (final sql in SchemaV4.migrationStatements) {
+        db.execute(sql);
+      }
+      for (final sql in SchemaV5.migrationStatements) {
+        db.execute(sql);
+      }
       db.execute('INSERT INTO schema_version (version) VALUES (?)', [
         kSchemaVersion,
       ]);
@@ -128,6 +152,24 @@ class DatabaseOpener {
     }
   }
 
+  /// Test/helper: create a v2 database (audit_log, no min_balance_cents).
+  static void createV2OnlyForTests(Database db) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final sql in SchemaV1.createStatements) {
+        db.execute(sql);
+      }
+      for (final sql in SchemaV2.migrationStatements) {
+        db.execute(sql);
+      }
+      db.execute('INSERT INTO schema_version (version) VALUES (?)', [2]);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
   static void _migrateV1ToV2(Database db) {
     db.execute('BEGIN IMMEDIATE');
     try {
@@ -135,6 +177,69 @@ class DatabaseOpener {
         db.execute(sql);
       }
       db.execute('UPDATE schema_version SET version = ?', [2]);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  static void _migrateV2ToV3(Database db) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final sql in SchemaV3.migrationStatements) {
+        db.execute(sql);
+      }
+      db.execute('UPDATE schema_version SET version = ?', [3]);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  static void _migrateV3ToV4(Database db) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final sql in SchemaV4.migrationStatements) {
+        db.execute(sql);
+      }
+      db.execute('UPDATE schema_version SET version = ?', [4]);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  static void _migrateV4ToV5(Database db) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final sql in SchemaV5.migrationStatements) {
+        db.execute(sql);
+      }
+      db.execute('UPDATE schema_version SET version = ?', [5]);
+      db.execute('COMMIT');
+    } on Object {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  /// Test/helper: create a v3 database (no payees table).
+  static void createV3OnlyForTests(Database db) {
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      for (final sql in SchemaV1.createStatements) {
+        db.execute(sql);
+      }
+      for (final sql in SchemaV2.migrationStatements) {
+        db.execute(sql);
+      }
+      for (final sql in SchemaV3.migrationStatements) {
+        db.execute(sql);
+      }
+      db.execute('INSERT INTO schema_version (version) VALUES (?)', [3]);
       db.execute('COMMIT');
     } on Object {
       db.execute('ROLLBACK');

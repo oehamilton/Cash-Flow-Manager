@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../auth/auth_service.dart';
+import '../../auth/recent_vault_store.dart';
+import '../../auth/vault_paths.dart';
+import '../../auth/vault_switch_service.dart';
 import '../../core/app_info.dart';
 import '../../data/database_exceptions.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../vault/recent_vaults_panel.dart';
+import '../vault/vault_create_flow.dart';
+import '../vault/vault_file_picker.dart';
+import '../vault/vault_restore_flow.dart';
 
 enum UnlockMode { create, unlock }
 
@@ -14,11 +21,19 @@ class UnlockPage extends StatefulWidget {
     required this.auth,
     required this.mode,
     required this.onUnlocked,
+    this.onVaultSwitched,
+    this.onCreateNewVault,
   });
 
   final AuthService auth;
   final UnlockMode mode;
   final VoidCallback onUnlocked;
+
+  /// Called after the active vault pointer changes (reload Hello flags, etc.).
+  final Future<void> Function()? onVaultSwitched;
+
+  /// Begin wizard to create another vault at the chosen path.
+  final Future<void> Function(String databasePath)? onCreateNewVault;
 
   @override
   State<UnlockPage> createState() => _UnlockPageState();
@@ -35,12 +50,67 @@ class _UnlockPageState extends State<UnlockPage> {
   bool _enableHelloOnCreate = false;
   bool _helloAvailable = false;
   bool _helloEnabled = false;
+  String? _activePath;
+  List<RecentVaultEntry> _recent = const [];
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _loadHelloFlags();
+    _loadVaultChrome();
+  }
+
+  Future<void> _loadVaultChrome() async {
+    try {
+      final path = await VaultPaths.activeDatabasePath();
+      await RecentVaultStore.record(path);
+      final recent = await RecentVaultStore.list();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activePath = path;
+        _recent = recent;
+      });
+    } on Object {
+      // Ignore path resolution failures in tests.
+    }
+  }
+
+  Future<void> _selectRecentVault(RecentVaultEntry entry) async {
+    if (_busy) {
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final activated = await VaultSwitchService.activate(entry.path);
+      await widget.onVaultSwitched?.call();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activePath = activated;
+        _passwordController.clear();
+      });
+      await _loadHelloFlags();
+      await _loadVaultChrome();
+    } on VaultSwitchException catch (e) {
+      if (mounted) {
+        setState(() => _error = e.message);
+      }
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
   }
 
   Future<void> _loadHelloFlags() async {
@@ -65,6 +135,105 @@ class _UnlockPageState extends State<UnlockPage> {
         _helloAvailable = false;
         _helloEnabled = false;
       });
+    }
+  }
+
+  Future<void> _openDifferentVault() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final initial = await activeVaultInitialDirectory();
+      final picked = await pickExistingVaultPath(initialDirectory: initial);
+      if (picked == null) {
+        return;
+      }
+      final activated = await VaultSwitchService.activate(picked);
+      await widget.onVaultSwitched?.call();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activePath = activated;
+        _passwordController.clear();
+      });
+      await _loadHelloFlags();
+      await _loadVaultChrome();
+    } on VaultSwitchException catch (e) {
+      if (mounted) {
+        setState(() => _error = e.message);
+      }
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _createNewVault() async {
+    final createNew = widget.onCreateNewVault;
+    if (createNew == null) {
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final path = await runCreateNewVaultFlow(context);
+      if (path == null) {
+        return;
+      }
+      await createNew(path);
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _restoreVaultFromBackup() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final restored = await runRestoreVaultFlow(context);
+      if (restored == null) {
+        return;
+      }
+      final activated = await VaultSwitchService.activate(restored);
+      await widget.onVaultSwitched?.call();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activePath = activated;
+        _passwordController.clear();
+      });
+      await _loadHelloFlags();
+      await _loadVaultChrome();
+    } on VaultSwitchException catch (e) {
+      if (mounted) {
+        setState(() => _error = e.message);
+      }
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -156,7 +325,8 @@ class _UnlockPageState extends State<UnlockPage> {
               padding: const EdgeInsets.all(32),
               child: Form(
                 key: _formKey,
-                child: Column(
+                child: SingleChildScrollView(
+                  child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -181,6 +351,29 @@ class _UnlockPageState extends State<UnlockPage> {
                       style: textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
+                    if (!isCreate && _activePath != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _activePath!,
+                        key: const Key('unlock_vault_path'),
+                        style: textTheme.bodySmall?.copyWith(
+                          fontFamily: AppTheme.monoFont,
+                          color: AppColors.onSurfaceMuted,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    if (!isCreate && _recent.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      RecentVaultsPanel(
+                        entries: _recent,
+                        activePath: _activePath,
+                        dense: true,
+                        onSelect: _selectRecentVault,
+                      ),
+                    ],
                     const SizedBox(height: 28),
                     TextFormField(
                       key: const Key('password_field'),
@@ -308,7 +501,27 @@ class _UnlockPageState extends State<UnlockPage> {
                         label: const Text('Unlock with Windows Hello'),
                       ),
                     ],
+                    if (!isCreate) ...[
+                      const SizedBox(height: 12),
+                      TextButton(
+                        key: const Key('unlock_open_different_vault'),
+                        onPressed: _busy ? null : _openDifferentVault,
+                        child: const Text('Open different vault…'),
+                      ),
+                      TextButton(
+                        key: const Key('unlock_restore_vault'),
+                        onPressed: _busy ? null : _restoreVaultFromBackup,
+                        child: const Text('Restore vault from backup…'),
+                      ),
+                      if (widget.onCreateNewVault != null)
+                        TextButton(
+                          key: const Key('unlock_create_new_vault'),
+                          onPressed: _busy ? null : _createNewVault,
+                          child: const Text('Create new vault…'),
+                        ),
+                    ],
                   ],
+                ),
                 ),
               ),
             ),

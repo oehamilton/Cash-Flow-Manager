@@ -78,7 +78,7 @@ void main() {
         interestRateApr: 19.99,
         minimumPaymentCents: 3500,
         paymentDueDay: 15,
-        openingBalanceCents: -50000,
+        openingBalanceCents: 50000,
         openingDate: DateTime(2026, 7, 1),
       ),
     );
@@ -89,6 +89,27 @@ void main() {
     expect(card.includeInDebtList, isTrue);
     expect(card.interestRateApr, 19.99);
     expect(accounts.listAccounts(), hasLength(2));
+  });
+
+  test('checking min_balance_cents persists on create and update', () async {
+    final accounts = await repo();
+    final id = accounts.create(
+      AccountDraft(
+        name: 'Buffer Checking',
+        type: AccountType.checking,
+        isPrimary: true,
+        minBalanceCents: 50000,
+        openingBalanceCents: 200000,
+        openingDate: DateTime(2026, 7, 1),
+      ),
+    );
+    expect(accounts.getById(id)!.minBalanceCents, 50000);
+
+    accounts.update(id, const AccountUpdate(minBalanceCents: 100000));
+    expect(accounts.getById(id)!.minBalanceCents, 100000);
+
+    accounts.update(id, const AccountUpdate(minBalanceCents: 0));
+    expect(accounts.getById(id)!.minBalanceCents, 0);
   });
 
   test('setPrimary transfers primary flag to another checking', () async {
@@ -154,7 +175,7 @@ void main() {
       AccountDraft(
         name: 'Car Loan',
         type: AccountType.loan,
-        openingBalanceCents: -100000,
+        openingBalanceCents: 100000,
         openingDate: DateTime(2026, 7, 1),
       ),
     );

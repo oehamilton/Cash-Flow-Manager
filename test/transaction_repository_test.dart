@@ -180,7 +180,7 @@ void main() {
       AccountDraft(
         name: 'Travel Card',
         type: AccountType.creditCard,
-        openingBalanceCents: -20000,
+        openingBalanceCents: 20000,
         openingDate: DateTime(2026, 7, 1),
       ),
     );
@@ -202,5 +202,36 @@ void main() {
     expect(cardList.any((t) => t.payee == 'Unique Payee XYZ'), isFalse);
     expect(cardList, hasLength(1));
     expect(cardList.single.isOpeningBalance, isTrue);
+  });
+
+  test('future-dated create uses manual_future; moving date retags source',
+      () async {
+    final (accountId, txs) = await setup();
+    final asOf = DateTime(2026, 7, 15);
+
+    final futureId = txs.create(
+      TransactionDraft(
+        accountId: accountId,
+        date: DateTime(2026, 8, 1),
+        payee: 'Planned purchase',
+        amountCents: -5000,
+      ),
+      asOf: asOf,
+    );
+    expect(txs.getById(futureId)!.source, TransactionSource.manualFuture);
+
+    txs.update(
+      futureId,
+      TransactionUpdate(date: DateTime(2026, 7, 10)),
+      asOf: asOf,
+    );
+    expect(txs.getById(futureId)!.source, TransactionSource.manual);
+
+    txs.update(
+      futureId,
+      TransactionUpdate(date: DateTime(2026, 9, 1)),
+      asOf: asOf,
+    );
+    expect(txs.getById(futureId)!.source, TransactionSource.manualFuture);
   });
 }

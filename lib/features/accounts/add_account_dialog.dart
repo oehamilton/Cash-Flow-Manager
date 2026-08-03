@@ -27,6 +27,7 @@ class _AddAccountDialogState extends State<AddAccountDialog> {
   final _balanceController = TextEditingController(text: '0.00');
   final _aprController = TextEditingController();
   final _minPaymentController = TextEditingController();
+  final _minBalanceController = TextEditingController();
 
   AccountType _type = AccountType.checking;
   DateTime _openingDate = DateTime.now();
@@ -47,6 +48,7 @@ class _AddAccountDialogState extends State<AddAccountDialog> {
     _balanceController.dispose();
     _aprController.dispose();
     _minPaymentController.dispose();
+    _minBalanceController.dispose();
     super.dispose();
   }
 
@@ -61,6 +63,9 @@ class _AddAccountDialogState extends State<AddAccountDialog> {
         minimumPaymentCents: _parseOptionalCents(_minPaymentController.text),
         paymentDueDay: _dueDay,
         includeInDebtList: _includeInDebtList,
+        minBalanceCents: _type == AccountType.checking
+            ? (_parseOptionalCents(_minBalanceController.text) ?? 0)
+            : 0,
         openingBalanceCents: parseDollarsToCents(_balanceController.text),
         openingDate: _openingDate,
       );
@@ -165,8 +170,11 @@ class _AddAccountDialogState extends State<AddAccountDialog> {
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9\$\.,\-]')),
                 ],
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Opening balance',
+                  helperText: _includeInDebtList
+                      ? 'For loans/cards: positive = amount owed'
+                      : null,
                 ),
               ),
               const SizedBox(height: 8),
@@ -179,6 +187,25 @@ class _AddAccountDialogState extends State<AddAccountDialog> {
                   child: const Text('Change'),
                 ),
               ),
+              if (_type == AccountType.checking) ...[
+                TextField(
+                  key: const Key('add_account_min_balance'),
+                  controller: _minBalanceController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9\$\.,]')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'Minimum balance (optional)',
+                    helperText:
+                        'Buffer reserved for unexpected expenses; used by '
+                        'extra-payment hints and register warnings',
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               TextField(
                 key: const Key('add_account_apr'),
                 controller: _aprController,

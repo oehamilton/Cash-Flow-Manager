@@ -1,4 +1,5 @@
 import 'recurrence_frequency.dart';
+import 'recurrence_schedule.dart';
 
 /// Persisted row in [recurrence_rules].
 class RecurrenceRule {
@@ -46,7 +47,7 @@ class RecurrenceRule {
       amountCents: row['amount_cents'] as int,
       frequency: RecurrenceFrequency.parse(row['frequency'] as String),
       interval: row['interval'] as int,
-      anchorDate: DateTime.parse(row['anchor_date'] as String),
+      anchorDate: RecurrenceSchedule.parseDateOnly(row['anchor_date'] as String),
       nextScheduledDate: _parseOptionalDate(row['next_scheduled_date'] as String?),
       endDate: _parseOptionalDate(row['end_date'] as String?),
       autoClear: (row['auto_clear'] as int) == 1,
@@ -60,7 +61,7 @@ class RecurrenceRule {
     if (raw == null || raw.isEmpty) {
       return null;
     }
-    return DateTime.parse(raw);
+    return RecurrenceSchedule.parseDateOnly(raw);
   }
 }
 

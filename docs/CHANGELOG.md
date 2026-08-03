@@ -4,6 +4,111 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [6.4.0] — 2026-08-03
+
+### Changed
+
+- Payees is a left-rail destination (not nested under Settings)
+- Register header includes an account dropdown to switch registers
+- Recurring editor uses the same account/payee autocomplete as the register (account payee = transfer)
+- Register defaults to Open rows; All scrolls to the last cleared / first open boundary; Open/Clr jump to top
+- Register search accepts dates/weeks/months (`2026-08-03`, `8/3/2026`, `2026-08`, `Aug 2026`, `this week`, `week of 8/3/2026`, `2026-W32`, …) in addition to payee/memo
+
+### Added
+
+- Activity log retention (default 1 year; 90 days / 1 year / 2 years / Forever) with prune on unlock
+- Activity log search (summary, category, action, device; dollar amounts match cents) and paging (25 per page)
+- About dialog (Project8X) from Settings and the left-rail brand/version
+- ARM64 MSIX packaging path for Surface / Snapdragon (`build_release.ps1 -Msix -Architecture arm64`)
+- Project8X code-signed MSIX + `install_trusted_publisher.ps1` so end users install without Developer Mode
+- Open / switch active vault from Settings or Unlock (F-0.5b); Hello credentials scoped per vault path
+- Restore vault from backup (copy into Documents\\CashFlowManager\\Restored, then switch)
+- Create new vault under Documents/CashFlowManager/<Name> for separate books (Personal vs Business)
+- Recent vaults list on Unlock and Settings (labels, rename, remove from list)
+
+### Fixed
+
+- Deleting a recurring register occurrence (including transfers) records a skip so rematerialize does not recreate it (schema v5)
+
+## [6.3.0] — 2026-07-24
+
+### Added
+
+- Phase 6.1 linked transfers: choose an account as payee to post paired register legs; edit syncs both; delete removes both; clear stays per-leg
+- Phase 6.2 payee directory in Settings (notes/contact, rename, merge) + autocomplete with accounts/managed/history
+- Phase 6.3 recurring transfers via `linked_account_id` + jump-to-other-account from transfer rows
+- Schema v4: `payees` table, `transactions.payee_id`, transfer_pair index
+
+## [5.3.0] — 2026-07-24
+
+### Added
+
+- Phase 5.3 Windows release packaging: `msix` config + `tool/build_release.ps1` (exe folder and optional MSIX) — parked pending resume of ship work
+
+## [5.2.0] — 2026-07-24
+
+### Added
+
+- Phase 5.2 encrypted vault backup (database + meta) from Settings
+- Optional CSV register export for a selected account (dollar amounts with two decimals)
+
+## [5.1.0] — 2026-07-24
+
+### Added
+
+- Phase 5.1 Activity log viewer in Settings (read-only audit trail, shows device)
+- Idle lock timeout setting (Never / 5 / 15 / 30 / 60 minutes; default 15)
+- Archive account confirmation dialog
+
+## [4.3.0] — 2026-07-24
+
+### Added
+
+- Phase 4.3 extra-payment hint from primary 4-week trough + APR-sorted debts
+- Checking `min_balance_cents` cash buffer (schema v3): suggested extra = 4-wk trough − buffer; burnt-orange register/trough warnings when below it
+- Red target icon on suggested debt (replaces "· target" text)
+
+### Changed
+
+- Debt/loan/card registers: positive balance = amount owed; negative = credit (they owe you)
+- Extra-payment suggestion is `max(0, 4-wk trough − min balance)`
+
+## [4.2.0] — 2026-07-24
+
+### Added
+
+- Phase 4.2 12-month account history chart (balance + interest paid)
+
+## [4.1.0] — 2026-07-24
+
+### Added
+
+- Phase 4.1 interest/principal split fields on loan and credit-card transactions
+
+## [3.5.0] — 2026-07-24
+
+### Added
+
+- Phase 3.5 header 4-week and 8-week forecast trough lows
+
+## [3.4.0] — 2026-07-24
+
+### Added
+
+- Phase 3.4 edit recurring-generated rows until cleared (`is_user_overridden`)
+
+## [3.3.0] — 2026-07-24
+
+### Added
+
+- Phase 3.3 manual future transactions and distinct forecast row colors
+
+## [3.2.0] — 2026-07-24
+
+### Added
+
+- Phase 3.2 materialize ~2 months of recurrence instances (idempotent keys)
+
 ## [3.1.0] — 2026-07-24
 
 ### Added

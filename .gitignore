@@ -58,3 +58,8 @@ active_vault_path.txt
 # Local env / secrets
 .env
 .env.*
+secrets/*.pfx
+secrets/*.p12
+secrets/*.password.txt
+secrets/*.key
+!secrets/README.md

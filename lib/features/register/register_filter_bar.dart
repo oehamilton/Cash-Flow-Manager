@@ -74,7 +74,7 @@ class RegisterFilterBar extends StatelessWidget {
                     decoration: InputDecoration(
                       isDense: true,
                       prefixIcon: const Icon(Icons.search, size: 20),
-                      hintText: 'Search payee or memo',
+                      hintText: 'Payee, memo, or date (2026-08, this week…)',
                       suffixIcon: filter.query.isEmpty
                           ? null
                           : IconButton(

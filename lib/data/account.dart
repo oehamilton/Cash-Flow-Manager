@@ -22,6 +22,7 @@ class Account {
     required this.isPrimary,
     required this.isArchived,
     required this.includeInDebtList,
+    this.minBalanceCents = 0,
     required this.openingBalanceCents,
     required this.openingDate,
     required this.createdAt,
@@ -47,6 +48,9 @@ class Account {
   final bool isPrimary;
   final bool isArchived;
   final bool includeInDebtList;
+
+  /// Soft floor for checking registers (extra-payment surplus + warnings).
+  final int minBalanceCents;
   final int openingBalanceCents;
   final DateTime openingDate;
   final DateTime createdAt;
@@ -73,6 +77,7 @@ class Account {
       isPrimary: (row['is_primary'] as int) == 1,
       isArchived: (row['is_archived'] as int) == 1,
       includeInDebtList: (row['include_in_debt_list'] as int) == 1,
+      minBalanceCents: row['min_balance_cents'] as int? ?? 0,
       openingBalanceCents: row['opening_balance_cents'] as int,
       openingDate: DateTime.parse(row['opening_date'] as String),
       createdAt: DateTime.parse(row['created_at'] as String),
@@ -112,6 +117,7 @@ class AccountDraft {
     this.currencyCode = 'USD',
     this.isPrimary = false,
     this.includeInDebtList,
+    this.minBalanceCents = 0,
     required this.openingBalanceCents,
     required this.openingDate,
   });
@@ -133,6 +139,7 @@ class AccountDraft {
   final String currencyCode;
   final bool isPrimary;
   final bool? includeInDebtList;
+  final int minBalanceCents;
   final int openingBalanceCents;
   final DateTime openingDate;
 }
@@ -160,6 +167,7 @@ class AccountUpdate {
     this.clearPaymentDueDay = false,
     this.currencyCode,
     this.includeInDebtList,
+    this.minBalanceCents,
   });
 
   final String? name;
@@ -182,4 +190,5 @@ class AccountUpdate {
   final bool clearPaymentDueDay;
   final String? currencyCode;
   final bool? includeInDebtList;
+  final int? minBalanceCents;
 }

@@ -8,6 +8,7 @@ import 'vault_location_store.dart';
 class VaultPaths {
   static const String defaultFileName = 'vault.cfm.db';
   static const String appFolderName = 'CashFlowManager';
+  static const String restoredFolderName = 'Restored';
 
   /// Active vault path (saved preference) or default under AppData.
   static Future<String> activeDatabasePath() async {
@@ -41,7 +42,62 @@ class VaultPaths {
     }
   }
 
+  /// `%USERPROFILE%/Documents/CashFlowManager` on Windows (easy to find, survives MSIX).
+  static String documentsAppRoot() {
+    final override = debugDocumentsRootOverride;
+    if (override != null) {
+      return override();
+    }
+    final home = Platform.environment['USERPROFILE'] ??
+        Platform.environment['HOME'] ??
+        Directory.systemTemp.path;
+    return p.join(home, 'Documents', appFolderName);
+  }
+
+  /// Suggested path when restoring a backup copy into Documents.
+  static String suggestedRestoreDatabasePath({DateTime? asOf}) {
+    final day = asOf ?? DateTime.now();
+    final y = day.year.toString().padLeft(4, '0');
+    final m = day.month.toString().padLeft(2, '0');
+    final d = day.day.toString().padLeft(2, '0');
+    return p.join(
+      documentsAppRoot(),
+      restoredFolderName,
+      'vault-restored-$y$m$d.cfm.db',
+    );
+  }
+
+  /// Suggested path for a new vault under Documents (e.g. Personal / Business).
+  static String suggestedNewVaultDatabasePath({String folderName = 'Personal'}) {
+    final safe = sanitizeVaultFolderName(folderName);
+    return p.join(documentsAppRoot(), safe, defaultFileName);
+  }
+
+  /// Folder segment safe for Windows paths (no separators or reserved junk).
+  static String sanitizeVaultFolderName(String folderName) {
+    var safe = folderName.trim();
+    if (safe.isEmpty) {
+      safe = 'Personal';
+    }
+    safe = safe.replaceAll(RegExp(r'[<>:"/\\|?*]'), '_');
+    safe = safe.replaceAll(RegExp(r'\s+'), ' ');
+    if (safe == '.' || safe == '..') {
+      safe = 'Personal';
+    }
+    return safe;
+  }
+
+  /// Test-only override for [appDataRoot].
+  static String Function()? debugAppDataRootOverride;
+
+  /// Test-only override for [documentsAppRoot].
+  static String Function()? debugDocumentsRootOverride;
+
   static String appDataRoot() {
+    final override = debugAppDataRootOverride;
+    if (override != null) {
+      return override();
+    }
     if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'];
       if (appData != null && appData.isNotEmpty) {

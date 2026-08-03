@@ -23,6 +23,10 @@ abstract final class AuditAction {
   static const clear = 'clear';
   static const unclear = 'unclear';
   static const reconcile = 'reconcile';
+  static const backupVault = 'backup_vault';
+  static const switchVault = 'switch_vault';
+  static const restoreVault = 'restore_vault';
+  static const exportCsv = 'export_csv';
 }
 
 abstract final class AuditEntityType {
@@ -30,4 +34,5 @@ abstract final class AuditEntityType {
   static const account = 'account';
   static const transaction = 'transaction';
   static const recurrenceRule = 'recurrence_rule';
+  static const payee = 'payee';
 }

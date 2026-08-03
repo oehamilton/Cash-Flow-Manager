@@ -32,6 +32,19 @@ enum AccountType {
   bool get defaultIncludeInDebtList =>
       this == AccountType.loan || this == AccountType.creditCard;
 
+  /// Show optional interest/principal split fields on register txs (Phase 4.1).
+  bool get showsInterestPrincipal =>
+      this == AccountType.loan || this == AccountType.creditCard;
+
+  /// Loan / credit card — positive balance means amount owed.
+  bool get isDebt =>
+      this == AccountType.loan || this == AccountType.creditCard;
+
+  bool get isIncome => this == AccountType.income;
+
+  /// Checking, savings, utility, other (not debt, not income).
+  bool get isAssetLike => !isDebt && !isIncome;
+
   static AccountType parse(String value) {
     return AccountType.values.firstWhere(
       (type) => type.dbValue == value,

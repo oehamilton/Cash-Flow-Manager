@@ -1,5 +1,5 @@
 /// Current on-disk schema version for Cash Flow Manager databases.
-const int kSchemaVersion = 2;
+const int kSchemaVersion = 5;
 
 /// DDL applied when creating schema v1 (base tables).
 abstract final class SchemaV1 {
@@ -121,6 +121,66 @@ CREATE INDEX idx_audit_log_at ON audit_log(at)
 ''',
     '''
 CREATE INDEX idx_audit_log_category_at ON audit_log(category, at)
+''',
+  ];
+}
+
+/// Schema v3: checking min-balance buffer for extra-payment / register warnings.
+abstract final class SchemaV3 {
+  static const List<String> migrationStatements = [
+    '''
+ALTER TABLE accounts
+ADD COLUMN min_balance_cents INTEGER NOT NULL DEFAULT 0
+''',
+  ];
+}
+
+/// Schema v4: payee directory + optional payee_id / transfer_pair index (Phase 6).
+abstract final class SchemaV4 {
+  static const List<String> migrationStatements = [
+    '''
+CREATE TABLE payees (
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL COLLATE NOCASE,
+  notes TEXT,
+  url TEXT,
+  phone TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+)
+''',
+    '''
+CREATE UNIQUE INDEX idx_payees_name ON payees(name COLLATE NOCASE)
+''',
+    '''
+ALTER TABLE transactions
+ADD COLUMN payee_id TEXT REFERENCES payees(id)
+''',
+    '''
+CREATE INDEX idx_transactions_transfer_pair
+  ON transactions(transfer_pair_id)
+''',
+    '''
+CREATE INDEX idx_transactions_payee_id
+  ON transactions(payee_id)
+''',
+  ];
+}
+
+/// Schema v5: tombstones so deleted recurring instances are not rematerialized.
+abstract final class SchemaV5 {
+  static const List<String> migrationStatements = [
+    '''
+CREATE TABLE recurrence_instance_skips (
+  recurrence_rule_id TEXT NOT NULL REFERENCES recurrence_rules(id) ON DELETE CASCADE,
+  instance_key TEXT NOT NULL,
+  skipped_at TEXT NOT NULL,
+  PRIMARY KEY (recurrence_rule_id, instance_key)
+)
+''',
+    '''
+CREATE INDEX idx_recurrence_instance_skips_rule
+  ON recurrence_instance_skips(recurrence_rule_id)
 ''',
   ];
 }
