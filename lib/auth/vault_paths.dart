@@ -41,7 +41,14 @@ class VaultPaths {
     }
   }
 
+  /// Test-only override for [appDataRoot].
+  static String Function()? debugAppDataRootOverride;
+
   static String appDataRoot() {
+    final override = debugAppDataRootOverride;
+    if (override != null) {
+      return override();
+    }
     if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'];
       if (appData != null && appData.isNotEmpty) {

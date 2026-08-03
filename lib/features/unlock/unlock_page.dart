@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../auth/auth_service.dart';
+import '../../auth/vault_paths.dart';
+import '../../auth/vault_switch_service.dart';
 import '../../core/app_info.dart';
 import '../../data/database_exceptions.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
+import '../vault/vault_file_picker.dart';
 
 enum UnlockMode { create, unlock }
 
@@ -14,11 +17,15 @@ class UnlockPage extends StatefulWidget {
     required this.auth,
     required this.mode,
     required this.onUnlocked,
+    this.onVaultSwitched,
   });
 
   final AuthService auth;
   final UnlockMode mode;
   final VoidCallback onUnlocked;
+
+  /// Called after the active vault pointer changes (reload Hello flags, etc.).
+  final Future<void> Function()? onVaultSwitched;
 
   @override
   State<UnlockPage> createState() => _UnlockPageState();
@@ -35,12 +42,26 @@ class _UnlockPageState extends State<UnlockPage> {
   bool _enableHelloOnCreate = false;
   bool _helloAvailable = false;
   bool _helloEnabled = false;
+  String? _activePath;
   String? _error;
 
   @override
   void initState() {
     super.initState();
     _loadHelloFlags();
+    _loadActivePath();
+  }
+
+  Future<void> _loadActivePath() async {
+    try {
+      final path = await VaultPaths.activeDatabasePath();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _activePath = path);
+    } on Object {
+      // Ignore path resolution failures in tests.
+    }
   }
 
   Future<void> _loadHelloFlags() async {
@@ -65,6 +86,42 @@ class _UnlockPageState extends State<UnlockPage> {
         _helloAvailable = false;
         _helloEnabled = false;
       });
+    }
+  }
+
+  Future<void> _openDifferentVault() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final initial = await activeVaultInitialDirectory();
+      final picked = await pickExistingVaultPath(initialDirectory: initial);
+      if (picked == null) {
+        return;
+      }
+      final activated = await VaultSwitchService.activate(picked);
+      await widget.onVaultSwitched?.call();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _activePath = activated;
+        _passwordController.clear();
+      });
+      await _loadHelloFlags();
+    } on VaultSwitchException catch (e) {
+      if (mounted) {
+        setState(() => _error = e.message);
+      }
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() => _error = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -181,6 +238,20 @@ class _UnlockPageState extends State<UnlockPage> {
                       style: textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
+                    if (!isCreate && _activePath != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _activePath!,
+                        key: const Key('unlock_vault_path'),
+                        style: textTheme.bodySmall?.copyWith(
+                          fontFamily: AppTheme.monoFont,
+                          color: AppColors.onSurfaceMuted,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                     const SizedBox(height: 28),
                     TextFormField(
                       key: const Key('password_field'),
@@ -306,6 +377,14 @@ class _UnlockPageState extends State<UnlockPage> {
                         onPressed: _busy ? null : _submitHello,
                         icon: const Icon(Icons.fingerprint),
                         label: const Text('Unlock with Windows Hello'),
+                      ),
+                    ],
+                    if (!isCreate) ...[
+                      const SizedBox(height: 12),
+                      TextButton(
+                        key: const Key('unlock_open_different_vault'),
+                        onPressed: _busy ? null : _openDifferentVault,
+                        child: const Text('Open different vault…'),
                       ),
                     ],
                   ],

@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:path/path.dart' as p;
 
 import '../data/audit_categories.dart';
 import '../data/audit_log_repository.dart';
@@ -11,6 +14,18 @@ import 'secure_store.dart';
 import 'vault_files.dart';
 import 'vault_meta.dart';
 import 'vault_paths.dart';
+
+/// Credential-store key for Hello DB passphrase, scoped per vault path.
+String helloPassphraseKeyForPath(String databasePath) {
+  final normalized = p.normalize(databasePath).toLowerCase();
+  // Stable non-cryptographic fingerprint (path uniqueness, not secrecy).
+  var hash = 2166136261;
+  for (final unit in utf8.encode(normalized)) {
+    hash ^= unit;
+    hash = (hash * 16777619) & 0xffffffff;
+  }
+  return 'cfm_hello_${hash.toRadixString(16).padLeft(8, '0')}';
+}
 
 /// Creates and unlocks the encrypted vault with password and optional Hello.
 class AuthService {
@@ -25,7 +40,8 @@ class AuthService {
         _resolveDatabasePath =
             resolveDatabasePath ?? VaultPaths.activeDatabasePath;
 
-  static const _helloPassphraseKey = 'cfm_hello_db_passphrase';
+  /// Legacy single-vault Hello key (migrated on next enable / successful read).
+  static const _legacyHelloPassphraseKey = 'cfm_hello_db_passphrase';
 
   final SecureStore _secureStore;
   final BiometricAuth _biometric;
@@ -204,7 +220,7 @@ class AuthService {
       throw AuthException('Windows Hello authentication failed');
     }
 
-    final passphrase = await _secureStore.read(_helloPassphraseKey);
+    final passphrase = await _readHelloPassphrase(path);
     if (passphrase == null || passphrase.isEmpty) {
       await PendingAccessAudit.enqueueUnlockFailed(
         databasePath: path,
@@ -265,8 +281,10 @@ class AuthService {
       throw AuthException('Windows Hello authentication failed');
     }
 
-    await _secureStore.write(_helloPassphraseKey, passphrase);
     final path = await databasePath();
+    await _secureStore.write(helloPassphraseKeyForPath(path), passphrase);
+    // Drop legacy global key so another vault cannot reuse it.
+    await _secureStore.delete(_legacyHelloPassphraseKey);
     final meta = await VaultMeta.load(path);
     if (meta == null) {
       throw AuthException('Vault metadata missing');
@@ -280,8 +298,9 @@ class AuthService {
 
   Future<void> disableHelloUnlock() async {
     final session = _session;
-    await _secureStore.delete(_helloPassphraseKey);
     final path = await databasePath();
+    await _secureStore.delete(helloPassphraseKeyForPath(path));
+    await _secureStore.delete(_legacyHelloPassphraseKey);
     final meta = await VaultMeta.load(path);
     if (meta != null) {
       await meta.copyWith(helloEnabled: false).save(path);
@@ -292,6 +311,26 @@ class AuthService {
         summary: 'Windows Hello unlock disabled',
       );
     }
+  }
+
+  Future<String?> _readHelloPassphrase(String databasePath) async {
+    final scoped = await _secureStore.read(
+      helloPassphraseKeyForPath(databasePath),
+    );
+    if (scoped != null && scoped.isNotEmpty) {
+      return scoped;
+    }
+    // One-time legacy fallback for vaults enabled before path-scoped keys.
+    final legacy = await _secureStore.read(_legacyHelloPassphraseKey);
+    if (legacy != null && legacy.isNotEmpty) {
+      await _secureStore.write(
+        helloPassphraseKeyForPath(databasePath),
+        legacy,
+      );
+      await _secureStore.delete(_legacyHelloPassphraseKey);
+      return legacy;
+    }
+    return null;
   }
 
   Future<void> lock() async {

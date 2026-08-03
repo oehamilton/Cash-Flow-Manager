@@ -17,6 +17,7 @@ All notable changes to this project are documented here.
 - About dialog (Project8X) from Settings and the left-rail brand/version
 - ARM64 MSIX packaging path for Surface / Snapdragon (`build_release.ps1 -Msix -Architecture arm64`)
 - Project8X code-signed MSIX + `install_trusted_publisher.ps1` so end users install without Developer Mode
+- Open / switch active vault from Settings or Unlock (F-0.5b); Hello credentials scoped per vault path
 
 ### Fixed
 

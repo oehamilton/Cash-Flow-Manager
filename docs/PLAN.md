@@ -392,7 +392,7 @@ Worth deciding now so they don’t surprise us mid-build:
 - **0.3** SQLCipher create/open, schema v1 migration, exclusive lock file
 - **0.4** Password set/unlock + Windows Hello hookup
 - **0.5** First-run wizard → primary checking + opening balance; default route = Register
-- **0.5b** *(later)* Open / switch active vault to a different database file path
+- **0.5b** Open / switch active vault to a different database file path — **done** (Settings + Unlock; restore/create-new follow-ons next)
 - **0.6** Test harness baseline (sample unit test + CI-ready `flutter test`)
 - **0.7** Audit log foundation — schema v2 `audit_log` table; log access events (vault create, unlock password/Hello, unlock failed, lock, force unlock, Hello enable/disable); no UI viewer yet
 - **Exit:** wizard creates encrypted DB; unlock works; lock prevents second writer; access events land in `audit_log`; tests green; theme direction accepted

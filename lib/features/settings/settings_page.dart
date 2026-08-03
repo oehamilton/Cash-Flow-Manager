@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 
 import '../../auth/auth_service.dart';
 import '../../auth/vault_backup_service.dart';
+import '../../auth/vault_switch_service.dart';
 import '../../core/app_info.dart';
 import '../../data/account.dart';
 import '../../data/account_repository.dart';
@@ -17,6 +18,7 @@ import '../../data/transaction_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 import '../about/about_dialog.dart';
+import '../vault/vault_file_picker.dart';
 import 'activity_log_panel.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -30,6 +32,7 @@ class SettingsPage extends StatefulWidget {
     this.databasePath,
     this.lockTimeoutMinutes = 15,
     this.onLockTimeoutChanged,
+    this.onSwitchVault,
   });
 
   final AuthService? auth;
@@ -40,6 +43,9 @@ class SettingsPage extends StatefulWidget {
   final Future<void> Function() onLock;
   final Future<void> Function(bool enable) onToggleHello;
   final Future<void> Function(int minutes)? onLockTimeoutChanged;
+
+  /// Switch to another vault file and return to the unlock screen.
+  final Future<void> Function(String databasePath)? onSwitchVault;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -139,6 +145,23 @@ class _SettingsPageState extends State<SettingsPage> {
       return '60 minutes';
     }
     return '$minutes minutes';
+  }
+
+  Future<void> _openDifferentVault() async {
+    final switchVault = widget.onSwitchVault;
+    if (switchVault == null) {
+      throw StateError('Vault switching is unavailable');
+    }
+    final initial = widget.databasePath != null
+        ? p.dirname(widget.databasePath!)
+        : await activeVaultInitialDirectory();
+    final picked = await pickExistingVaultPath(initialDirectory: initial);
+    if (picked == null) {
+      return;
+    }
+    // Validate before tearing down the session; AuthGate activates + locks.
+    final path = await VaultSwitchService.ensureComplete(picked);
+    await switchVault(path);
   }
 
   Future<void> _backupVault() async {
@@ -301,6 +324,23 @@ class _SettingsPageState extends State<SettingsPage> {
                   style: textTheme.bodyMedium?.copyWith(
                     fontFamily: AppTheme.monoFont,
                   ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Switch to another encrypted vault (e.g. personal vs business). '
+                  'You will lock and unlock with that vault\'s password.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceMuted,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  key: const Key('settings_open_different_vault'),
+                  onPressed: (_busy || widget.onSwitchVault == null)
+                      ? null
+                      : () => _run(_openDifferentVault),
+                  icon: const Icon(Icons.folder_open_outlined),
+                  label: const Text('Open different vault…'),
                 ),
               ],
               const SizedBox(height: 24),

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../app_shell/app_shell.dart';
 import '../../auth/auth_service.dart';
+import '../../auth/vault_switch_service.dart';
 import '../../data/account_repository.dart';
+import '../../data/audit_categories.dart';
+import '../../data/audit_log_repository.dart';
 import '../../data/recurrence_materializer.dart';
 import '../wizard/setup_wizard_page.dart';
 import 'unlock_page.dart';
@@ -125,6 +128,7 @@ class _AuthGateState extends State<AuthGate> {
         auth: _auth,
         mode: UnlockMode.unlock,
         onUnlocked: _onUnlocked,
+        onVaultSwitched: _bootstrap,
       );
     }
 
@@ -140,6 +144,7 @@ class _AuthGateState extends State<AuthGate> {
     return AppShell(
       auth: _auth,
       onLock: _lock,
+      onSwitchVault: _switchVaultAndLock,
       helloEnabled: _helloEnabled,
       helloAvailable: _helloAvailable,
       onToggleHello: (enable) async {
@@ -151,5 +156,26 @@ class _AuthGateState extends State<AuthGate> {
         await _refreshHelloFlags();
       },
     );
+  }
+
+  /// Settings: switch active vault pointer, lock, then show unlock for the new file.
+  Future<void> _switchVaultAndLock(String databasePath) async {
+    final session = _auth.session;
+    if (session != null) {
+      AuditLogRepository(session).append(
+        category: AuditCategory.settings,
+        action: AuditAction.switchVault,
+        summary: 'Switched active vault',
+        entityType: AuditEntityType.vault,
+        detail: {'to': databasePath},
+      );
+    }
+    await VaultSwitchService.activate(databasePath);
+    await _auth.lock();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _needsPrimary = false);
+    await _bootstrap();
   }
 }
