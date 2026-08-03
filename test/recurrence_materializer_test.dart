@@ -85,7 +85,12 @@ void main() {
       );
 
       final materializer = RecurrenceMaterializer(harness.session);
-      // Align window with create()'s side-effect pass (uses DateTime.now()).
+      // create() materializes with DateTime.now(); wipe and rematerialize
+      // with a fixed asOf so this test stays calendar-stable.
+      harness.session.database.execute(
+        'DELETE FROM transactions WHERE recurrence_rule_id = ?',
+        [ruleId],
+      );
       materializer.materializeRule(
         rules.getById(ruleId)!,
         asOf: asOf,
@@ -138,7 +143,12 @@ void main() {
         ),
       );
 
-      // create() uses DateTime.now(); align deterministically.
+      // create() materializes with DateTime.now(); wipe and rematerialize
+      // with a fixed asOf so expected dates stay calendar-stable.
+      harness.session.database.execute(
+        'DELETE FROM transactions WHERE recurrence_rule_id = ?',
+        [ruleId],
+      );
       RecurrenceMaterializer(harness.session).materializeRule(
         rules.getById(ruleId)!,
         asOf: asOf,
