@@ -43,13 +43,47 @@ class _RegisterPageState extends State<RegisterPage> {
   String? _error;
   RegisterFilter _filter = const RegisterFilter();
   final FocusNode _searchFocus = FocusNode();
+  final ScrollController _ledgerScroll = ScrollController();
   bool _showRecurring = false;
   String? _lastMaterializedAccountId;
+  bool _scrollToBoundaryAfterBuild = false;
+  bool _scrollToTopAfterBuild = false;
+
+  /// Approximate ledger row height (content + divider) for All-boundary jump.
+  static const double _kRegisterRowExtent = 57;
+
+  @override
+  void didUpdateWidget(covariant RegisterPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.accountId != widget.accountId) {
+      if (_filter.cleared == ClearedFilter.all) {
+        _scrollToBoundaryAfterBuild = true;
+      } else {
+        _scrollToTopAfterBuild = true;
+      }
+    }
+  }
 
   @override
   void dispose() {
     _searchFocus.dispose();
+    _ledgerScroll.dispose();
     super.dispose();
+  }
+
+  void _scheduleLedgerJump(double offset) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_ledgerScroll.hasClients) {
+        return;
+      }
+      final max = _ledgerScroll.position.maxScrollExtent;
+      _ledgerScroll.jumpTo(offset.clamp(0.0, max));
+    });
+  }
+
+  void _scheduleScrollToBoundary(List<RegisterEntry> visible) {
+    final index = clearedOpenBoundaryIndex(visible);
+    _scheduleLedgerJump(index * _kRegisterRowExtent);
   }
 
   void _materializeIfNeeded(String accountId) {
@@ -320,6 +354,20 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     }
 
+    if (_scrollToBoundaryAfterBuild &&
+        _filter.cleared == ClearedFilter.all &&
+        visible.isNotEmpty) {
+      _scrollToBoundaryAfterBuild = false;
+      _scrollToTopAfterBuild = false;
+      _scheduleScrollToBoundary(visible);
+    } else if (_scrollToTopAfterBuild) {
+      _scrollToTopAfterBuild = false;
+      _scrollToBoundaryAfterBuild = false;
+      _scheduleLedgerJump(0);
+    } else if (_scrollToBoundaryAfterBuild) {
+      _scrollToBoundaryAfterBuild = false;
+    }
+
     return Shortcuts(
       shortcuts: const {
         SingleActivator(LogicalKeyboardKey.keyN, control: true):
@@ -348,7 +396,13 @@ class _RegisterPageState extends State<RegisterPage> {
           _ClearFilterIntent: CallbackAction<_ClearFilterIntent>(
             onInvoke: (_) {
               if (_filter.isActive) {
-                setState(() => _filter = const RegisterFilter());
+                setState(() {
+                  if (_filter.cleared != ClearedFilter.uncleared) {
+                    _scrollToTopAfterBuild = true;
+                    _scrollToBoundaryAfterBuild = false;
+                  }
+                  _filter = const RegisterFilter();
+                });
               } else if (_searchFocus.hasFocus) {
                 _searchFocus.unfocus();
               }
@@ -479,7 +533,20 @@ class _RegisterPageState extends State<RegisterPage> {
                       searchFocusNode: _searchFocus,
                       resultCount: visible.length,
                       totalCount: entries.length,
-                      onChanged: (next) => setState(() => _filter = next),
+                      onChanged: (next) {
+                        setState(() {
+                          if (next.cleared != _filter.cleared) {
+                            if (next.cleared == ClearedFilter.all) {
+                              _scrollToBoundaryAfterBuild = true;
+                              _scrollToTopAfterBuild = false;
+                            } else {
+                              _scrollToTopAfterBuild = true;
+                              _scrollToBoundaryAfterBuild = false;
+                            }
+                          }
+                          _filter = next;
+                        });
+                      },
                     ),
                     if (loadError != null) ...[
                       const SizedBox(height: 8),
@@ -530,6 +597,7 @@ class _RegisterPageState extends State<RegisterPage> {
                                       key: ValueKey(
                                         'register_tx_list_$accountId',
                                       ),
+                                      controller: _ledgerScroll,
                                       itemCount: visible.length,
                                       itemBuilder: (context, index) {
                                         final entry = visible[index];

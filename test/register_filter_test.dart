@@ -94,7 +94,47 @@ void main() {
     expect(filtered.single.transaction.payee, 'Grocery Market');
   });
 
-  test('inactive filter returns all rows', () {
-    expect(applyRegisterFilter(rows, const RegisterFilter()), hasLength(3));
+  test('default filter shows open rows; All shows everything', () {
+    expect(
+      applyRegisterFilter(rows, const RegisterFilter()),
+      hasLength(2),
+      reason: 'default filter is Open (uncleared)',
+    );
+    expect(const RegisterFilter().isActive, isFalse);
+    expect(
+      applyRegisterFilter(
+        rows,
+        const RegisterFilter(cleared: ClearedFilter.all),
+      ),
+      hasLength(3),
+    );
+    expect(
+      const RegisterFilter(cleared: ClearedFilter.all).isActive,
+      isTrue,
+    );
+  });
+
+  test('query matches calendar month / day in search box', () {
+    final byMonth = applyRegisterFilter(
+      rows,
+      const RegisterFilter(query: '2026-07', cleared: ClearedFilter.all),
+    );
+    expect(byMonth, hasLength(3));
+
+    final byDay = applyRegisterFilter(
+      rows,
+      const RegisterFilter(query: '2026-07-05', cleared: ClearedFilter.all),
+    );
+    expect(byDay.single.transaction.payee, 'Grocery Market');
+  });
+
+  test('clearedOpenBoundaryIndex is last cleared beside first open', () {
+    expect(clearedOpenBoundaryIndex(rows), 0);
+    expect(clearedOpenBoundaryIndex(rows.sublist(1)), 0);
+    final allCleared = [
+      entry(payee: 'A', cleared: true, date: DateTime(2026, 7, 1)),
+      entry(payee: 'B', cleared: true, date: DateTime(2026, 7, 2)),
+    ];
+    expect(clearedOpenBoundaryIndex(allCleared), 1);
   });
 }

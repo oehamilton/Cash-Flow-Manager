@@ -1,4 +1,5 @@
 import '../../data/transaction.dart';
+import 'register_date_query.dart';
 
 /// Cleared-status facet for the register filter bar (Phase 2.6).
 enum ClearedFilter {
@@ -7,11 +8,28 @@ enum ClearedFilter {
   uncleared,
 }
 
+/// Index to scroll to when showing All: last cleared row beside first open,
+/// or the end of the list when everything is cleared.
+int clearedOpenBoundaryIndex(List<RegisterEntry> entries) {
+  for (var i = 0; i < entries.length; i++) {
+    if (!entries[i].transaction.isCleared) {
+      return i > 0 ? i - 1 : 0;
+    }
+  }
+  if (entries.isEmpty) {
+    return 0;
+  }
+  return entries.length - 1;
+}
+
 /// Light register filter: payee/memo text, cleared status, optional date bounds.
 class RegisterFilter {
+  /// Default cleared facet: show open (uncleared) rows on register open.
+  static const ClearedFilter defaultCleared = ClearedFilter.uncleared;
+
   const RegisterFilter({
     this.query = '',
-    this.cleared = ClearedFilter.all,
+    this.cleared = defaultCleared,
     this.dateFrom,
     this.dateTo,
   });
@@ -23,7 +41,7 @@ class RegisterFilter {
 
   bool get isActive =>
       query.trim().isNotEmpty ||
-      cleared != ClearedFilter.all ||
+      cleared != defaultCleared ||
       dateFrom != null ||
       dateTo != null;
 
@@ -104,5 +122,10 @@ bool _matches(
   }
   final payee = (tx.payee ?? '').toLowerCase();
   final memo = (tx.memo ?? '').toLowerCase();
-  return payee.contains(query) || memo.contains(query);
+  final textHit = payee.contains(query) || memo.contains(query);
+  final dateQuery = RegisterDateQuery.tryParse(query);
+  if (dateQuery != null) {
+    return dateQuery.matches(txDate) || textHit;
+  }
+  return textHit;
 }
