@@ -313,7 +313,7 @@ LIMIT 1
     }
 
     final keys = <String>{};
-    for (final tx in [primary, if (counterpart != null) counterpart]) {
+    for (final tx in [primary, ?counterpart]) {
       final key = tx.recurrenceInstanceKey;
       if (key == null || key.isEmpty) {
         continue;

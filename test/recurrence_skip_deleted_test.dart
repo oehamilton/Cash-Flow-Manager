@@ -5,7 +5,6 @@ import 'package:cash_flow_manager/data/recurrence_frequency.dart';
 import 'package:cash_flow_manager/data/recurrence_materializer.dart';
 import 'package:cash_flow_manager/data/recurrence_rule.dart';
 import 'package:cash_flow_manager/data/recurrence_rule_repository.dart';
-import 'package:cash_flow_manager/data/transaction.dart';
 import 'package:cash_flow_manager/data/transaction_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
