@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- 8-week trough is the low in weeks 4–8 only (not the full 8-week span); 4-week remains today→week 4
+- Register trough chips show the date each low occurs
+- Register sorts same-day deposits before deductions so running/trough balances apply income first
+
 ## [6.4.0] — 2026-08-03
 
 ### Changed

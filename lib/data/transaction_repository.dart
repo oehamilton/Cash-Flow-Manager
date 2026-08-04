@@ -58,13 +58,18 @@ LIMIT 1
     return Transaction.fromRow(rows.first);
   }
 
-  /// Chronological register order (oldest first) for one account.
+  /// Register order: date ascending, then deposits before deductions, then id.
+  ///
+  /// Same-day credits first so running balance / troughs apply income before
+  /// scheduled outflows on that day.
   List<Transaction> listForAccount(String accountId) {
     final rows = _db.select(
       '''
 SELECT * FROM transactions
 WHERE account_id = ?
-ORDER BY date ASC, id ASC
+ORDER BY date ASC,
+  CASE WHEN amount_cents >= 0 THEN 0 ELSE 1 END ASC,
+  id ASC
 ''',
       [accountId],
     );
@@ -153,21 +158,28 @@ WHERE account_id = ?
     final today = asOf ?? DateTime.now();
     final todayCents = balanceOnOrBefore(accountId, today);
     final entries = listRegisterEntries(accountId);
+    final trough4 = ForecastTrough.lowestInWindow(
+      balanceThroughToday: todayCents,
+      entries: entries,
+      asOf: today,
+      startAfterDays: 0,
+      endDays: ForecastTrough.weeks4Days,
+    );
+    // Weeks 4–8 only (not the full 8-week span).
+    final trough8 = ForecastTrough.lowestInWindow(
+      balanceThroughToday: todayCents,
+      entries: entries,
+      asOf: today,
+      startAfterDays: ForecastTrough.weeks4Days,
+      endDays: ForecastTrough.weeks8Days,
+    );
     return RegisterMetrics(
       reconciledCents: clearedBalanceCents(accountId),
       todayCents: todayCents,
-      trough4WeeksCents: ForecastTrough.lowestInHorizon(
-        balanceThroughToday: todayCents,
-        entries: entries,
-        asOf: today,
-        horizonDays: ForecastTrough.weeks4Days,
-      ),
-      trough8WeeksCents: ForecastTrough.lowestInHorizon(
-        balanceThroughToday: todayCents,
-        entries: entries,
-        asOf: today,
-        horizonDays: ForecastTrough.weeks8Days,
-      ),
+      trough4WeeksCents: trough4.cents,
+      trough4WeeksOn: trough4.date,
+      trough8WeeksCents: trough8.cents,
+      trough8WeeksOn: trough8.date,
     );
   }
 

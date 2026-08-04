@@ -36,7 +36,8 @@ void main() {
         asOf: DateTime(2026, 7, 10),
         horizonDays: 28,
       );
-      expect(trough, 10000);
+      expect(trough.cents, 10000);
+      expect(trough.date, DateTime(2026, 7, 10));
     });
 
     test('lowestInHorizon finds future debit trough', () {
@@ -76,7 +77,83 @@ void main() {
         asOf: DateTime(2026, 7, 10),
         horizonDays: 28, // through 2026-08-07 — excludes Aug 25
       );
-      expect(trough, 6000);
+      expect(trough.cents, 6000);
+      expect(trough.date, DateTime(2026, 7, 20));
+    });
+
+    test('weeks 4–8 window ignores earlier dip after recovery', () {
+      final now = DateTime.utc(2026, 7, 1);
+      final asOf = DateTime(2026, 7, 10);
+      final entries = [
+        // Day 10 → day 28 window: dips then recovers.
+        RegisterEntry(
+          transaction: Transaction(
+            id: 'dip',
+            accountId: 'acct',
+            date: DateTime(2026, 7, 20),
+            amountCents: -7000,
+            isCleared: false,
+            source: TransactionSource.manualFuture,
+            isUserOverridden: false,
+            createdAt: now,
+            updatedAt: now,
+          ),
+          runningBalanceCents: 3000,
+        ),
+        RegisterEntry(
+          transaction: Transaction(
+            id: 'recover',
+            accountId: 'acct',
+            date: DateTime(2026, 8, 5),
+            amountCents: 7000,
+            isCleared: false,
+            source: TransactionSource.manualFuture,
+            isUserOverridden: false,
+            createdAt: now,
+            updatedAt: now,
+          ),
+          runningBalanceCents: 10000,
+        ),
+        // After day 28 (2026-08-07): modest dip.
+        RegisterEntry(
+          transaction: Transaction(
+            id: 'later',
+            accountId: 'acct',
+            date: DateTime(2026, 8, 20),
+            amountCents: -2000,
+            isCleared: false,
+            source: TransactionSource.manualFuture,
+            isUserOverridden: false,
+            createdAt: now,
+            updatedAt: now,
+          ),
+          runningBalanceCents: 8000,
+        ),
+      ];
+
+      final trough4 = ForecastTrough.lowestInWindow(
+        balanceThroughToday: 10000,
+        entries: entries,
+        asOf: asOf,
+        startAfterDays: 0,
+        endDays: ForecastTrough.weeks4Days,
+      );
+      expect(trough4.cents, 3000);
+      expect(trough4.date, DateTime(2026, 7, 20));
+
+      final trough8 = ForecastTrough.lowestInWindow(
+        balanceThroughToday: 10000,
+        entries: entries,
+        asOf: asOf,
+        startAfterDays: ForecastTrough.weeks4Days,
+        endDays: ForecastTrough.weeks8Days,
+      );
+      expect(
+        trough8.cents,
+        8000,
+        reason: '8-wk low is weeks 4–8 only, not the earlier 4-wk dip',
+      );
+      expect(trough8.date, DateTime(2026, 8, 20));
     });
   });
 
@@ -128,7 +205,9 @@ void main() {
     expect(metrics.reconciledCents, 10000); // opening only
     expect(metrics.todayCents, 8000); // opening + store
     expect(metrics.trough4WeeksCents, 3000); // after car payment
+    expect(metrics.trough4WeeksOn, DateTime(2026, 7, 25));
     expect(metrics.trough8WeeksCents, 1000); // after insurance
+    expect(metrics.trough8WeeksOn, DateTime(2026, 8, 20));
 
     final store = txs.listForAccount(accountId).firstWhere(
           (t) => t.payee == 'Store',

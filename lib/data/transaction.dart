@@ -133,7 +133,9 @@ class RegisterEntry {
   }
 }
 
-/// Walks chronological transactions and attaches a running balance after each.
+/// Walks ordered transactions and attaches a running balance after each.
+///
+/// Expects register order: date ASC, deposits before deductions, then stable id.
 List<RegisterEntry> withRunningBalances(Iterable<Transaction> transactions) {
   var running = 0;
   final entries = <RegisterEntry>[];
@@ -148,19 +150,24 @@ List<RegisterEntry> withRunningBalances(Iterable<Transaction> transactions) {
 
 /// Sticky register header metrics (Phase 2.4 / 3.5).
 ///
-/// Troughs are the lowest projected running balance in the next 4 / 8 weeks.
+/// Troughs: 4-wk = lowest from today through week 4; 8-wk = lowest in weeks 4–8.
+/// [trough4WeeksOn] / [trough8WeeksOn] are the calendar dates those lows occur.
 class RegisterMetrics {
   const RegisterMetrics({
     required this.reconciledCents,
     required this.todayCents,
     this.trough4WeeksCents,
+    this.trough4WeeksOn,
     this.trough8WeeksCents,
+    this.trough8WeeksOn,
   });
 
   final int reconciledCents;
   final int todayCents;
   final int? trough4WeeksCents;
+  final DateTime? trough4WeeksOn;
   final int? trough8WeeksCents;
+  final DateTime? trough8WeeksOn;
 }
 
 /// Fields required to create a user-entered transaction (Phase 2.1 / 6.1).

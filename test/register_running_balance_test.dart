@@ -78,6 +78,44 @@ void main() {
         accounts.balanceCents(accountId),
       );
     });
+
+    test('same-day deposit sorts before deduction for running balance', () async {
+      await harness.createUnlockedVault();
+      final accounts = AccountRepository(harness.session);
+      final txs = TransactionRepository(harness.session);
+      final accountId = accounts.createPrimaryChecking(
+        PrimaryCheckingDraft(
+          name: 'Checking',
+          openingBalanceCents: 10000,
+          openingDate: DateTime(2026, 7, 1),
+        ),
+      );
+      // Create deduction first so id order would put it ahead without sort rule.
+      txs.create(
+        TransactionDraft(
+          accountId: accountId,
+          date: DateTime(2026, 7, 15),
+          payee: 'Rent',
+          amountCents: -8000,
+        ),
+      );
+      txs.create(
+        TransactionDraft(
+          accountId: accountId,
+          date: DateTime(2026, 7, 15),
+          payee: 'Payroll',
+          amountCents: 5000,
+        ),
+      );
+
+      final entries = txs.listRegisterEntries(accountId);
+      final day = entries
+          .where((e) => !e.transaction.isOpeningBalance)
+          .toList();
+      expect(day.map((e) => e.transaction.payee).toList(), ['Payroll', 'Rent']);
+      expect(day[0].runningBalanceCents, 15000);
+      expect(day[1].runningBalanceCents, 7000);
+    });
   });
 }
 
