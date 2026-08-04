@@ -4,6 +4,8 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [6.4.1] — 2026-08-04
+
 ### Changed
 
 - 8-week trough is the low in weeks 4–8 only (not the full 8-week span); 4-week remains today→week 4
