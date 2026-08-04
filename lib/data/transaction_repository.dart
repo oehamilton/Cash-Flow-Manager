@@ -154,32 +154,29 @@ WHERE account_id = ?
   }
 
   /// Sticky header metrics including 4/8-week forecast troughs (Phase 3.5).
-  RegisterMetrics metricsFor(String accountId, {DateTime? asOf}) {
+  ///
+  /// Pass [entries] when the caller already loaded the register to avoid a
+  /// second full scan (register page rebuild path).
+  RegisterMetrics metricsFor(
+    String accountId, {
+    DateTime? asOf,
+    List<RegisterEntry>? entries,
+  }) {
     final today = asOf ?? DateTime.now();
     final todayCents = balanceOnOrBefore(accountId, today);
-    final entries = listRegisterEntries(accountId);
-    final trough4 = ForecastTrough.lowestInWindow(
+    final register = entries ?? listRegisterEntries(accountId);
+    final lows = ForecastTrough.pairForRegister(
       balanceThroughToday: todayCents,
-      entries: entries,
+      entries: register,
       asOf: today,
-      startAfterDays: 0,
-      endDays: ForecastTrough.weeks4Days,
-    );
-    // Weeks 4–8 only (not the full 8-week span).
-    final trough8 = ForecastTrough.lowestInWindow(
-      balanceThroughToday: todayCents,
-      entries: entries,
-      asOf: today,
-      startAfterDays: ForecastTrough.weeks4Days,
-      endDays: ForecastTrough.weeks8Days,
     );
     return RegisterMetrics(
       reconciledCents: clearedBalanceCents(accountId),
       todayCents: todayCents,
-      trough4WeeksCents: trough4.cents,
-      trough4WeeksOn: trough4.date,
-      trough8WeeksCents: trough8.cents,
-      trough8WeeksOn: trough8.date,
+      trough4WeeksCents: lows.weeks4.cents,
+      trough4WeeksOn: lows.weeks4.date,
+      trough8WeeksCents: lows.weeks4to8.cents,
+      trough8WeeksOn: lows.weeks4to8.date,
     );
   }
 

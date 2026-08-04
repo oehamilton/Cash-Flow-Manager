@@ -154,6 +154,16 @@ void main() {
         reason: '8-wk low is weeks 4–8 only, not the earlier 4-wk dip',
       );
       expect(trough8.date, DateTime(2026, 8, 20));
+
+      final pair = ForecastTrough.pairForRegister(
+        balanceThroughToday: 10000,
+        entries: entries,
+        asOf: asOf,
+      );
+      expect(pair.weeks4.cents, trough4.cents);
+      expect(pair.weeks4.date, trough4.date);
+      expect(pair.weeks4to8.cents, trough8.cents);
+      expect(pair.weeks4to8.date, trough8.date);
     });
   });
 

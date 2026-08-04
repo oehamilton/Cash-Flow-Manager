@@ -344,8 +344,8 @@ class _RegisterPageState extends State<RegisterPage> {
           account = accountsRepo.getById(accountId);
           if (account != null) {
             _materializeIfNeeded(accountId);
-            metrics = txs.metricsFor(accountId);
             entries = txs.listRegisterEntries(accountId);
+            metrics = txs.metricsFor(accountId, entries: entries);
             visible = applyRegisterFilter(entries, _filter);
           }
         }

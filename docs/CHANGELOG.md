@@ -4,6 +4,13 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [6.4.2] — 2026-08-04
+
+### Changed
+
+- Forecast troughs use calendar-day math (DST-safe) and one register scan for both lows
+- App icon updated from CashFlowIcon source (multi-size `app_icon.ico` + 512 PNG)
+
 ## [6.4.1] — 2026-08-04
 
 ### Changed
@@ -11,6 +18,7 @@ All notable changes to this project are documented here.
 - 8-week trough is the low in weeks 4–8 only (not the full 8-week span); 4-week remains today→week 4
 - Register trough chips show the date each low occurs
 - Register sorts same-day deposits before deductions so running/trough balances apply income first
+- Forecast troughs use calendar-day math (DST-safe) and one register scan for both lows
 
 ## [6.4.0] — 2026-08-03
 

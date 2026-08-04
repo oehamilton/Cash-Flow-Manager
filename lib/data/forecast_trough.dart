@@ -11,6 +11,17 @@ class ForecastTroughResult {
   final DateTime date;
 }
 
+/// Pair of register forecast lows (today→4 weeks, and weeks 4–8).
+class ForecastTroughPair {
+  const ForecastTroughPair({
+    required this.weeks4,
+    required this.weeks4to8,
+  });
+
+  final ForecastTroughResult weeks4;
+  final ForecastTroughResult weeks4to8;
+}
+
 /// Lowest projected register balance over a forward window (Phase 3.5).
 ///
 /// - **4-week low:** min from today through day 28.
@@ -19,6 +30,52 @@ class ForecastTroughResult {
 abstract final class ForecastTrough {
   static const weeks4Days = 28;
   static const weeks8Days = 56;
+
+  /// Both trough chips from one chronological scan (register is date-ordered).
+  static ForecastTroughPair pairForRegister({
+    required int balanceThroughToday,
+    required Iterable<RegisterEntry> entries,
+    required DateTime asOf,
+  }) {
+    final today = _dateOnly(asOf);
+    final day28 = _addDays(today, weeks4Days);
+    final day56 = _addDays(today, weeks8Days);
+
+    var trough4 = balanceThroughToday;
+    var trough4Date = today;
+    // Seed weeks 4–8 with balance at the week-4 boundary (last running on/before
+    // day 28, else today's balance).
+    var trough8 = balanceThroughToday;
+    var trough8Date = today;
+
+    for (final entry in entries) {
+      final d = _dateOnly(entry.transaction.date);
+      if (!d.isAfter(today)) {
+        continue;
+      }
+      if (d.isAfter(day56)) {
+        break;
+      }
+
+      final bal = entry.runningBalanceCents;
+      if (!d.isAfter(day28)) {
+        if (bal < trough4) {
+          trough4 = bal;
+          trough4Date = d;
+        }
+        trough8 = bal;
+        trough8Date = d;
+      } else if (bal < trough8) {
+        trough8 = bal;
+        trough8Date = d;
+      }
+    }
+
+    return ForecastTroughPair(
+      weeks4: ForecastTroughResult(cents: trough4, date: trough4Date),
+      weeks4to8: ForecastTroughResult(cents: trough8, date: trough8Date),
+    );
+  }
 
   /// Lowest balance in `(asOf + startAfterDays, asOf + endDays]` (calendar days).
   ///
@@ -36,9 +93,9 @@ abstract final class ForecastTrough {
     assert(startAfterDays >= 0);
     assert(endDays >= startAfterDays);
 
-    final today = DateTime(asOf.year, asOf.month, asOf.day);
-    final start = today.add(Duration(days: startAfterDays));
-    final end = today.add(Duration(days: endDays));
+    final today = _dateOnly(asOf);
+    final start = _addDays(today, startAfterDays);
+    final end = _addDays(today, endDays);
 
     var trough = balanceThroughToday;
     var troughDate = today;
@@ -86,4 +143,10 @@ abstract final class ForecastTrough {
 
   static DateTime _dateOnly(DateTime date) =>
       DateTime(date.year, date.month, date.day);
+
+  /// Calendar-day arithmetic (avoids DST shifting midnight via [Duration]).
+  static DateTime _addDays(DateTime date, int days) {
+    final base = _dateOnly(date);
+    return DateTime(base.year, base.month, base.day + days);
+  }
 }
