@@ -7,8 +7,8 @@
 #   .\tool\install_trusted_publisher.ps1 -CerPath .\packaging\Project8X-CodeSigning.cer
 #
 # After this one-time step:
-#   Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-arm64.msix
-#   # or double-click the .msix
+#   Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-x64.msix
+#   # or CashFlowManager-arm64.msix / double-click the .msix
 
 param(
     [string]$CerPath = ''
@@ -85,7 +85,7 @@ Write-Host @"
 Certificate installed. You do not need Developer Mode to install a matching
 Project8X-signed MSIX. Next:
 
-  Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-arm64.msix
-  # or double-click the .msix in Explorer
+  Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-x64.msix
+  # or CashFlowManager-arm64.msix / double-click the .msix in Explorer
 
 "@ -ForegroundColor DarkGray

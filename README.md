@@ -62,7 +62,7 @@ Build on a machine that matches the install target: **x64** for Intel/AMD PCs, *
 # Release folder under build\windows\<arch>\runner\Release
 .\tool\build_release.ps1
 
-# Signed MSIX for this host (CashFlowManager-arm64.msix on Surface / ARM)
+# Signed MSIX for this host (CashFlowManager-x64.msix on Intel/AMD)
 .\tool\build_release.ps1 -Msix
 
 # Explicit native ARM64 package (must run on an ARM64 Windows host)
@@ -73,7 +73,7 @@ Build on a machine that matches the install target: **x64** for Intel/AMD PCs, *
 
 ```powershell
 .\tool\install_trusted_publisher.ps1
-Add-AppxPackage -Path build\windows\msix\CashFlowManager-arm64.msix
+Add-AppxPackage -Path build\windows\msix\CashFlowManager-x64.msix
 ```
 
 Store / paid CA signing is a later upgrade. Partner Center identity is not configured here.

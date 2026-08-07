@@ -2,7 +2,7 @@
 
 What to install when coding or building Cash Flow Manager on a **new Windows machine**. Keep this file updated when tooling changes.
 
-**Last verified:** 2026-07-23 on Windows 11 ARM64 (Snapdragon-class), Flutter 3.44.8 stable.
+**Last verified:** 2026-08-07 on Windows 11 x64 (Intel), Flutter 3.44.9 stable / Dart 3.12.2. Previously: 2026-07-23 on Windows 11 ARM64 (Snapdragon-class), Flutter 3.44.8.
 
 ## Windows CPU architectures (Intel / AMD / ARM)
 
@@ -49,7 +49,9 @@ flutter doctor
 flutter config --no-analytics   # optional
 ```
 
-Pinned expectation: **Flutter stable** with Dart matching `pubspec.yaml` (`sdk: ^3.12.2` as of 0.4.0).
+Pinned expectation: **Flutter stable ≥ 3.44** with Dart matching `pubspec.yaml` (`sdk: ^3.12.2`).
+
+If `flutter pub get` fails with “requires SDK version ^3.12.2” while `dart --version` shows an older SDK (e.g. 3.8.x), your Flutter install is stale — run `flutter upgrade` (or reinstall stable) and open a new terminal. Do **not** lower the project SDK constraint.
 
 ### 3. Visual Studio 2022 (Windows desktop toolchain)
 
@@ -143,6 +145,8 @@ Artifacts land under `build\windows\<arch>\runner\...`
 
 ### Release + MSIX (Phase 5.3)
 
+Packaging is **MSIX** (App Installer / `Add-AppxPackage`), not a classic WiX `.msi`. That is the Windows store-style package this repo ships today.
+
 **Signing cert (once per build machine):**
 
 ```powershell
@@ -171,11 +175,15 @@ Uses the `msix` pub.dev package (`msix_config` in `pubspec.yaml`). The script:
 
 ```powershell
 .\tool\install_trusted_publisher.ps1
-Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-arm64.msix
+# Intel/AMD host:
+Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-x64.msix
+# ARM64 host:
+# Add-AppxPackage -Path .\build\windows\msix\CashFlowManager-arm64.msix
 ```
 
 Or double-click the `.msix` after the cert is trusted. Developer Mode remains useful for **Flutter development** (plugin symlinks), not for end-user installs.
 
+**Intel / AMD:** run `-Msix` (or `-Architecture x64`) on this class of machine for `CashFlowManager-x64.msix`.  
 **Surface Pro / Windows on ARM:** run the arm64 build **on the tablet** (or any Snapdragon Windows host) for a native ARM64 binary.
 
 ## CI / second machine tips
